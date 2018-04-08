@@ -7,4 +7,9 @@ Uses code from:
 * https://github.com/Jorl17/open-elevation
 * https://github.com/stucchio/Python-LRU-cache
 
+## Usage
+
+```
+docker run -p8080:8080 normanrz/elevation-service
+```
 
