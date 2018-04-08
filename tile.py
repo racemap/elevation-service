@@ -95,7 +95,7 @@ class Lookup:
     return Lookup.get(tile, zoom)._lookup(latlng)
 
   @staticmethod
-  @lru_cache_function(max_size=1024, expiration=2**60)
+  @lru_cache_function(max_size=1024*8, expiration=2**60)
   def get(tile, zoom):
     return Lookup(tile, zoom)
 
