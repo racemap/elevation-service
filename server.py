@@ -3,7 +3,7 @@ import json
 import bottle
 from bottle import route, run, request, response, hook
 
-from tile import LatLng, Lookup
+from elevation import LatLng, Lookup
 
 def get_elevation(latlng):
     """

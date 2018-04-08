@@ -4,7 +4,7 @@ RUN pip install osr numpy bottle gunicorn
 
 COPY lru.py /app/lru.py
 COPY server.py /app/server.py
-COPY tile.py /app/tile.py
+COPY elevation.py /app/elevation.py
 
 WORKDIR /app
 

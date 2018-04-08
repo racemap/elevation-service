@@ -47,12 +47,11 @@ def compute_tile(latlng, zoom):
 def tile_filename(tile_coordinate, zoom):
   return ".terrain-cache/{}/{}/{}.tif".format(int(zoom), int(tile_coordinate.x), int(tile_coordinate.y))
 
-def download_json(url):
-  return json.load(urlopen(url))
-
 def download_tile(tileCoordinate, zoom, filename):
   urlretrieve('https://elevation-tiles-prod.s3.amazonaws.com/geotiff/{}/{}/{}.tif'
     .format(int(zoom), int(tileCoordinate.x), int(tileCoordinate.y)), filename)
+  print("Downloaded {}".format(filename))
+
 
 class Lookup:
   def __init__(self, tile_coordinate, zoom):
@@ -87,6 +86,7 @@ class Lookup:
     return self.pixel_array[math.floor(x), math.floor(y)]
 
   def __delete__(self):
+    print("Removing {}".format(self.filename))
     remove(self.filename)
 
   @staticmethod
@@ -103,8 +103,9 @@ class Lookup:
 if __name__ == "__main__":
 
   def get_open_elevation(latlng):
-    return download_json("https://api.open-elevation.com/api/v1/lookup?locations={},{}"
-      .format(latlng.lat, latlng.lng))["results"][0]["elevation"]
+    obj = json.load(urlopen("https://api.open-elevation.com/api/v1/lookup?locations={},{}"
+      .format(latlng.lat, latlng.lng)))
+    return obj["results"][0]["elevation"]
 
   def do(latlng):
     ele = []
