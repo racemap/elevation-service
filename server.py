@@ -1,9 +1,17 @@
 import json
+import math
 
 import bottle
 from bottle import route, run, request, response, hook
 
 from elevation import LatLng, Lookup
+
+class InternalException(ValueError):
+    """
+    Utility exception class to handle errors internally and return error codes to the client
+    """
+    pass
+
 
 def get_elevation(latlng):
     """
@@ -23,7 +31,7 @@ def get_elevation(latlng):
     return {
         'latitude': latlng.lat,
         'longitude': latlng.lng,
-        'elevation': int(elevation)
+        'elevation': None if math.isnan(elevation) else int(elevation)
     }
 
 

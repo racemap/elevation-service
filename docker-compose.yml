@@ -1,0 +1,11 @@
+version: '2.1'
+
+services:
+  elevation:
+    container_name: elevation
+    build: '.'
+    ports:
+      - 8080:8080
+    volumes:
+      - .terrain-cache:/app/.terrain-cache
+
