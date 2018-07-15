@@ -69,7 +69,7 @@ def body_to_locations():
     :return: 
     """
     try:
-        locations = request.json.get('locations', None)
+        locations = request.json.get(u'locations', None)
     except Exception:
         raise InternalException(json.dumps({'error': 'Invalid JSON.'}))
 
@@ -79,7 +79,7 @@ def body_to_locations():
     latlng = []
     for l in locations:
         try:
-            latlng += [ (l['latitude'],l['longitude']) ]
+            latlng += [ LatLng(l[u'latitude'], l[u'longitude']) ]
         except KeyError:
             raise InternalException(json.dumps({'error': '"%s" is not in a valid format.' % l}))
 
