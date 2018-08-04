@@ -1,0 +1,15 @@
+{
+  "name": "elevation-service",
+  "version": "0.0.1",
+  "main": "index.js",
+  "scripts": {
+    "start": "micro index",
+    "test": "node test/test.js"
+  },
+  "author": "Norman Rzepka <code@normanrz.com>",
+  "license": "MIT",
+  "dependencies": {
+    "lru-memoize": "^1.0.2",
+    "micro": "^9.3.2"
+  }
+}
