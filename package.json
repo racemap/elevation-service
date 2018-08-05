@@ -4,12 +4,16 @@
   "main": "index.js",
   "scripts": {
     "start": "micro index.js",
-    "test": "node test/test.js"
+    "test": "node test/test.js",
+    "pretty": "prettier --write *.js test/*.js"
   },
   "author": "Norman Rzepka <code@normanrz.com>",
   "license": "MIT",
   "dependencies": {
     "lru-memoize": "^1.0.2",
     "micro": "^9.3.2"
+  },
+  "devDependencies": {
+    "prettier": "^1.14.0"
   }
 }

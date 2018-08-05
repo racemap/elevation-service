@@ -1,11 +1,13 @@
 const { json, send } = require("micro");
-const { S3TileSet } = require("./tileset");
+const { FileTileSet, S3TileSet } = require("./tileset");
 
 const cacheSize = process.env.TILE_SET_CACHE || 128;
 const tileFolder = process.env.TILE_SET_PATH || __dirname;
 const maxPostSize = process.env.MAX_POST_SIZE || "500kb";
 
-const tiles = new S3TileSet({ cacheSize });
+const tiles = tileFolder.startsWith("s3://")
+  ? new S3TileSet({ cacheSize })
+  : new FileTileSet(tileFolder, { cacheSize });
 
 module.exports = async (req, res) => {
   if (req.method !== "POST") {

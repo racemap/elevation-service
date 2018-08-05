@@ -1,9 +1,12 @@
-const TileSet = require("../tileset");
+const assert = require("assert");
+
+const { FileTileSet } = require("../tileset");
 
 (async function() {
-  const tileset = new TileSet(__dirname);
+  const tileset = new FileTileSet(__dirname);
 
-  // Return elevation in meters above sea level.
-  // By default, elevation is interpolated bilinearly.
-  console.log(await tileset.getElevation([51.3, 13.4]));
+  const testLatLng = [51.3, 13.4];
+
+  console.log(await tileset.getElevation(testLatLng));
+  assert(101, await tileset.getElevation(testLatLng));
 })();

@@ -12,7 +12,8 @@ class TileSet {
     this.options = Object.assign(
       {},
       {
-        cacheSize: 128
+        cacheSize: 128,
+        gzip: true
       },
       options
     );
@@ -43,21 +44,12 @@ class TileSet {
 
 class FileTileSet extends TileSet {
   constructor(folder, options) {
-    super(
-      Object.assign(
-        {},
-        {
-          cacheSize: 128,
-          gzip: true
-        },
-        options
-      )
-    );
+    super(options);
     this._folder = folder;
   }
 
   async _getTile(lat, lng) {
-    let stream = fs.createReadStream(
+    let stream = createReadStream(
       path.join(this._folder, this.getFilePath(lat, lng))
     );
     if (this.options.gzip) {
@@ -70,7 +62,7 @@ class FileTileSet extends TileSet {
 
 class S3TileSet extends TileSet {
   async _getTile(lat, lng) {
-    console.log(`${S3TileSet.baseUrl}/${this.getFilePath(lat, lng)}`);
+    // console.log(`${S3TileSet.baseUrl}/${this.getFilePath(lat, lng)}`);
     let stream = await new Promise(resolve =>
       get(`${S3TileSet.baseUrl}/${this.getFilePath(lat, lng)}`, resolve)
     );
