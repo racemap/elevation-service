@@ -28,12 +28,12 @@ jobs:
               --name elevation \
               "normanrz/elevation-service:${CIRCLE_BUILD_NUM}"
             sleep 5
-            RESULT=curl \
+            RESULT=$(curl \
               -d '[[51.3, 13.4], [51.4, 13.3]]' \
               -XPOST \
               -H 'Content-Type: application/json' \
-              http://localhost:3000
-            [ $RESULT -eq "[101,100]" ]
+              http://localhost:3000)
+            [ "$RESULT" = "[101,100]" ]
             docker stop elevation
 
       - run:
@@ -51,12 +51,12 @@ jobs:
               -v$(pwd)/data:/app/data \
               "normanrz/elevation-service:${CIRCLE_BUILD_NUM}"
             sleep 5
-            RESULT=curl \
+            RESULT=$(curl \
               -d '[[51.3, 13.4], [51.4, 13.3]]' \
               -XPOST \
               -H 'Content-Type: application/json' \
-              http://localhost:3000
-            [ $RESULT -eq "[101,100]" ]
+              http://localhost:3000)
+            [ "$RESULT" = "[101,100]" ]
             docker stop elevation
 
       - run:
