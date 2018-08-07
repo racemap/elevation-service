@@ -1,6 +1,6 @@
 version: 2
 jobs:
-  build:
+  build_test_deploy:
     machine: true
     steps:
       - checkout
@@ -77,4 +77,4 @@ workflows:
   version: 2
   default:
     jobs:
-      - build
+      - build_test_deploy
