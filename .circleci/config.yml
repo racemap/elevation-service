@@ -17,7 +17,7 @@ jobs:
               "normanrz/elevation-service:${CIRLCE_BUILD_NUM}" \
               yarn test
 
-      - run: 
+      - run:
           name: Run S3 tests
           command: |
             docker run \
@@ -35,7 +35,7 @@ jobs:
               http://localhost:3000
             docker stop elevation
 
-      - run: 
+      - run:
           name: Run local tests
           command: |
             mkdir -p data/N51
@@ -55,23 +55,23 @@ jobs:
               http://localhost:3000
             docker stop elevation
 
-        - run:
-            name: Push Docker images
-            command: |
-              echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+      - run:
+          name: Push Docker images
+          command: |
+            echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
+            docker tag \
+              "normanrz/elevation-service:${CIRLCE_BUILD_NUM}" \
+              "normanrz/elevation-service:${CIRLCE_BRANCH}"
+            docker push "normanrz/elevation-service:${CIRLCE_BUILD_NUM}"
+            docker push "normanrz/elevation-service:${CIRLCE_BRANCH}"
+            docker push "normanrz/elevation-service:latest"
+            if [ "${CIRCLE_BRANCH}" == "master" ]; then
               docker tag \
                 "normanrz/elevation-service:${CIRLCE_BUILD_NUM}" \
-                "normanrz/elevation-service:${CIRLCE_BRANCH}"
-              docker push "normanrz/elevation-service:${CIRLCE_BUILD_NUM}"
-              docker push "normanrz/elevation-service:${CIRLCE_BRANCH}"
+                "normanrz/elevation-service:latest"
               docker push "normanrz/elevation-service:latest"
-              if [ "${CIRCLE_BRANCH}" == "master" ]; then
-                docker tag \
-                  "normanrz/elevation-service:${CIRLCE_BUILD_NUM}" \
-                  "normanrz/elevation-service:latest"
-                docker push "normanrz/elevation-service:latest"
-              fi
-              docker logout
+            fi
+            docker logout
 
 workflows:
   version: 2
