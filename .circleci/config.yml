@@ -39,7 +39,9 @@ jobs:
           name: Run local tests
           command: |
             mkdir -p data/N51
-            aws s3 cp s3://elevation-tiles-prod/skadi/N51/N51E013.hgt.gz data/N51
+            wget \
+              http://elevation-tiles-prod.s3.amazonaws.com/skadi/N51/N51E013.hgt.gz \
+              -O data/N51/N51E013.hgt.gz
             docker run \
               --rm \
               -d \
