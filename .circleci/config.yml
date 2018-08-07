@@ -72,3 +72,9 @@ jobs:
                 docker push "normanrz/elevation-service:latest"
               fi
               docker logout
+
+workflows:
+  version: 2
+  default:
+    jobs:
+      - build
