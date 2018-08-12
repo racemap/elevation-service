@@ -1,5 +1,7 @@
 # elevation-service
 
+[![CircleCI](https://circleci.com/gh/normanrz/elevation-service.svg?style=svg)](https://circleci.com/gh/normanrz/elevation-service)
+
 Elevation service that works with the [Terrain data provided on Amazon AWS S3](https://registry.opendata.aws/terrain-tiles/). You can either pre-download the data on your server (ca. 200 GB) or access directly on S3 (for minimal latency from `us-east-1` region).
 
 Inspired by:
