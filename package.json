@@ -10,6 +10,7 @@
   "author": "Norman Rzepka <code@normanrz.com>",
   "license": "MIT",
   "dependencies": {
+    "limited-map": "^0.0.1",
     "lru-memoize": "^1.0.2",
     "micro": "^9.3.2"
   },

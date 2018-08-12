@@ -71,6 +71,10 @@ is-stream@1.1.0:
   version "1.1.0"
   resolved "https://registry.yarnpkg.com/is-stream/-/is-stream-1.1.0.tgz#12d4a3dd4e68e0b79ceb8dbc84173ae80d91ca44"
 
+limited-map@^0.0.1:
+  version "0.0.1"
+  resolved "https://registry.yarnpkg.com/limited-map/-/limited-map-0.0.1.tgz#78a24fd73b0fb58312f7d639ca572b1bfd3f0bf0"
+
 lru-memoize@^1.0.2:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/lru-memoize/-/lru-memoize-1.0.2.tgz#f5ae84d288e7d55fec8388ec0bd725621bc815d0"
