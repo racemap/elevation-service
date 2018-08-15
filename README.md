@@ -2,7 +2,7 @@
 
 [![CircleCI](https://circleci.com/gh/normanrz/elevation-service.svg?style=svg)](https://circleci.com/gh/normanrz/elevation-service)
 
-Elevation service that works with the [terrain data provided by Mapzen and Amazon AWS S3](https://registry.opendata.aws/terrain-tiles/). You can either pre-download the entire data on your server (ca. 200 GB) or access directly on S3 (for minimal latency from `us-east-1` region).
+Self-hosted elevation service that works with the [terrain data provided by Mapzen and Amazon AWS S3](https://registry.opendata.aws/terrain-tiles/). You can either pre-download the entire data on your server (ca. 200 GB) or access directly on S3 (for minimal latency from `us-east-1` region).
 
 Try it out with our hosted service: https://elevation.racemap.com/api
 
@@ -24,7 +24,7 @@ curl -d '[[51.3, 13.4], [51.4, 13.3]]' -XPOST -H 'Content-Type: application/json
 For one-off queries. You can also issue GET requests with latitude and longitude as query parameters.
 
 ```bash
-curl http://localhost:3000/\?lat\=51.3\&lng=13.4
+curl http://localhost:3000/\?lat\=51.3\&lng\=13.4
 # < ele
 ```
 
