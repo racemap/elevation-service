@@ -24,7 +24,7 @@ curl -d '[[51.3, 13.4], [51.4, 13.3]]' -XPOST -H 'Content-Type: application/json
 For one-off queries. You can also issue GET requests with latitude and longitude as query parameters.
 
 ```bash
-curl http://localhost:3000/\?lat\=51.3\&lng\=13.4
+curl 'http://localhost:3000/?lat=51.3&lng=13.4'
 # < ele
 ```
 
