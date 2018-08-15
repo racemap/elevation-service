@@ -12,7 +12,8 @@
   "dependencies": {
     "limited-map": "^0.0.1",
     "lru-memoize": "^1.0.2",
-    "micro": "^9.3.2"
+    "micro": "^9.3.2",
+    "micro-query": "^0.3.0"
   },
   "devDependencies": {
     "prettier": "^1.14.0"

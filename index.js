@@ -1,5 +1,6 @@
 const { json, send } = require("micro");
 const limitedMap = require("limited-map");
+const query = require("micro-query");
 const { FileTileSet, S3TileSet } = require("./tileset");
 
 const cacheSize = process.env.TILE_SET_CACHE || 128;
@@ -11,13 +12,13 @@ const tiles = tileFolder.startsWith("s3://")
   ? new S3TileSet({ cacheSize })
   : new FileTileSet(tileFolder, { cacheSize });
 
-module.exports = async (req, res) => {
-  if (req.method !== "POST") {
-    return send(res, 405, { error: "Only POST allowed" });
-  }
-
+async function handlePOST(req, res) {
   const payload = await json(req, { limit: maxPostSize });
-  if (!payload || Object.keys(payload).length === 0) {
+  if (
+    !payload ||
+    !Array.isArray(payload) ||
+    !payload.every(([lat, lng]) => Number.isFinite(lat) && Number.isFinite(lng))
+  ) {
     return send(res, 400, {
       error:
         "Invalid Payload. Expected a JSON array with latitude-longitude pairs: [[lat, lng], ...]"
@@ -30,4 +31,35 @@ module.exports = async (req, res) => {
     maxParallelProcessing
   );
   return result;
+}
+
+async function handleGET(req, res) {
+  const reqQuery = query(req);
+  const lat = parseFloat(reqQuery.lat);
+  const lng = parseFloat(reqQuery.lng);
+  if (lat == null || !Number.isFinite(lat)) {
+    return send(res, 400, {
+      error:
+        "Invalid Latitude. Expected a float number as query parameter: ?lat=12.3&lng=45.6"
+    });
+  }
+  if (lng == null || !Number.isFinite(lng)) {
+    return send(res, 400, {
+      error:
+        "Invalid Longitude. Expected a float number as query parameter: ?lat=12.3&lng=45.6"
+    });
+  }
+  const result = await tiles.getElevation([lat, lng]);
+  return result;
+}
+
+module.exports = async (req, res) => {
+  switch (req.method) {
+    case "POST":
+      return handlePOST(req, res);
+    case "GET":
+      return handleGET(req, res);
+    default:
+      return send(res, 405, { error: "Only GET or POST allowed" });
+  }
 };

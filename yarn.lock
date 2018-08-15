@@ -79,6 +79,12 @@ lru-memoize@^1.0.2:
   version "1.0.2"
   resolved "https://registry.yarnpkg.com/lru-memoize/-/lru-memoize-1.0.2.tgz#f5ae84d288e7d55fec8388ec0bd725621bc815d0"
 
+micro-query@^0.3.0:
+  version "0.3.0"
+  resolved "https://registry.yarnpkg.com/micro-query/-/micro-query-0.3.0.tgz#10bd973d6248379ab5847ab92d3365fc344f309d"
+  dependencies:
+    qs "6.5.2"
+
 micro@^9.3.2:
   version "9.3.2"
   resolved "https://registry.yarnpkg.com/micro/-/micro-9.3.2.tgz#41e249fe96a33db056f0a5dabb32c8fd4b69c5ca"
@@ -92,6 +98,10 @@ micro@^9.3.2:
 prettier@^1.14.0:
   version "1.14.0"
   resolved "https://registry.yarnpkg.com/prettier/-/prettier-1.14.0.tgz#847c235522035fd988100f1f43cf20a7d24f9372"
+
+qs@6.5.2:
+  version "6.5.2"
+  resolved "https://registry.yarnpkg.com/qs/-/qs-6.5.2.tgz#cb3ae806e8740444584ef154ce8ee98d403f3e36"
 
 raw-body@2.3.2:
   version "2.3.2"

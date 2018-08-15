@@ -34,6 +34,8 @@ jobs:
               -H 'Content-Type: application/json' \
               http://localhost:3000)
             [ "$RESULT" = "[101,100]" ]
+            RESULT=$(curl http://localhost:3000/\?lat\=51.3\&lng\=13.4)
+            [ "$RESULT" = "101" ]
             docker stop elevation
 
       - run:
@@ -57,6 +59,8 @@ jobs:
               -H 'Content-Type: application/json' \
               http://localhost:3000)
             [ "$RESULT" = "[101,100]" ]
+            RESULT=$(curl http://localhost:3000/\?lat\=51.3\&lng\=13.4)
+            [ "$RESULT" = "101" ]
             docker stop elevation
 
       - run:
