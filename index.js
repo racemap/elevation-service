@@ -54,22 +54,20 @@ async function handleGET(req, res) {
 }
 
 async function handleGETStatus(req, res) {
-  return send(res, 200);
+  return send(res, 200, "Ok");
 }
 
 module.exports = async (req, res) => {
-  if (req.method == "GET" && req.url == "/status") {
-    return handleGETStatus(req, res);
-  }
-  else
-  {
-    switch (req.method) {
-      case "POST":
-        return handlePOST(req, res);
-      case "GET":
+  switch (req.method) {
+    case "POST":
+      return handlePOST(req, res);
+    case "GET":
+      if (req.url == "/status") {
+        return handleGETStatus(req, res);
+      } else {
         return handleGET(req, res);
-      default:
-        return send(res, 405, { error: "Only GET or POST allowed" });
-    }
+      }
+    default:
+      return send(res, 405, { error: "Only GET or POST allowed" });
   }
 };

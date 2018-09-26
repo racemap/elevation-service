@@ -1,6 +1,6 @@
 # Elevation service
 
-[![CircleCI](https://circleci.com/gh/normanrz/elevation-service.svg?style=svg)](https://circleci.com/gh/normanrz/elevation-service)
+[![CircleCI](https://circleci.com/gh/racemap/elevation-service.svg?style=svg)](https://circleci.com/gh/racemap/elevation-service)
 
 Self-hosted elevation service that works with the [terrain data provided by Mapzen and Amazon AWS S3](https://registry.opendata.aws/terrain-tiles/). You can either pre-download the entire data on your server (ca. 200 GB) or access directly on S3 (for minimal latency from `us-east-1` region).
 
