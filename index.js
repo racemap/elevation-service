@@ -1,6 +1,7 @@
 const { json, send } = require("micro");
 const limitedMap = require("limited-map");
 const query = require("micro-query");
+const cors = require("micro-cors")();
 const { FileTileSet, S3TileSet } = require("./tileset");
 
 const cacheSize = process.env.TILE_SET_CACHE || 128;
@@ -57,7 +58,7 @@ async function handleGETStatus(req, res) {
   return send(res, 200, "Ok");
 }
 
-module.exports = async (req, res) => {
+async function handler(req, res) {
   switch (req.method) {
     case "POST":
       return handlePOST(req, res);
@@ -70,4 +71,6 @@ module.exports = async (req, res) => {
     default:
       return send(res, 405, { error: "Only GET or POST allowed" });
   }
-};
+}
+
+module.exports = cors(handler);
