@@ -68,6 +68,9 @@ async function handler(req, res) {
       } else {
         return handleGET(req, res);
       }
+    case "OPTIONS":
+      send(res, 200, "");
+      return;
     default:
       return send(res, 405, { error: "Only GET or POST allowed" });
   }
