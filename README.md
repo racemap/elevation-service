@@ -33,7 +33,7 @@ curl 'http://localhost:3000/?lat=51.3&lng=13.4'
 Download data (ca. 200 GB):
 
 ```bash
-aws s3 cp --recursive s3://elevation-tiles-prod/skadi /path/to/data/folder
+aws s3 cp --no-sign-request --recursive s3://elevation-tiles-prod/skadi /path/to/data/folder
 ```
 
 Run the docker container:
