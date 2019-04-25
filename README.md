@@ -21,6 +21,18 @@ curl -d '[[51.3, 13.4], [51.4, 13.3]]' -XPOST -H 'Content-Type: application/json
 # < [ele, ...]
 ```
 
+or with Python 3
+
+```python
+import requests
+
+headers = {  'Content-Type': 'application/json', }
+data = '[[51.3, 13.4], [51.4, 13.3]]'
+response = requests.post('https://elevation.racemap.com/api',
+                         headers=headers, data=data)
+print(response.text)
+```
+
 For one-off queries. You can also issue GET requests with latitude and longitude as query parameters.
 
 ```bash
