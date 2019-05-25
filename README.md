@@ -39,7 +39,7 @@ aws s3 cp --recursive s3://elevation-tiles-prod/skadi /path/to/data/folder
 Run the docker container:
 
 ```bash
-docker run --rm -v/path/to/data/folder:/app/data -p3000:3000 normanrz/elevation-service
+docker run --rm -v/path/to/data/folder:/app/data -p3000:3000 racemap/elevation-service
 ```
 
 ## Usage with S3-hosted data
@@ -47,7 +47,7 @@ docker run --rm -v/path/to/data/folder:/app/data -p3000:3000 normanrz/elevation-
 Run the docker container:
 
 ```bash
-docker run --rm -eTILE_SET_PATH=s3:// -p3000:3000 normanrz/elevation-service
+docker run --rm -eTILE_SET_PATH=s3:// -p3000:3000 racemap/elevation-service
 ```
 
 ## License

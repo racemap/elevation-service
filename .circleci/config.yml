@@ -7,14 +7,14 @@ jobs:
 
       - run: 
           name: Build docker container
-          command: docker build -t "normanrz/elevation-service:${CIRCLE_BUILD_NUM}" .
+          command: docker build -t "racemap/elevation-service:${CIRCLE_BUILD_NUM}" .
 
       - run: 
           name: Run unit tests
           command: |
             docker run \
               --rm \
-              "normanrz/elevation-service:${CIRCLE_BUILD_NUM}" \
+              "racemap/elevation-service:${CIRCLE_BUILD_NUM}" \
               yarn test
 
       - run:
@@ -26,7 +26,7 @@ jobs:
               -eTILE_SET_PATH=s3:// \
               -p3000:3000 \
               --name elevation \
-              "normanrz/elevation-service:${CIRCLE_BUILD_NUM}"
+              "racemap/elevation-service:${CIRCLE_BUILD_NUM}"
             sleep 5
             RESULT=$(curl \
               -d '[[51.3, 13.4], [51.4, 13.3]]' \
@@ -51,7 +51,7 @@ jobs:
               -p3000:3000 \
               --name elevation \
               -v$(pwd)/data:/app/data \
-              "normanrz/elevation-service:${CIRCLE_BUILD_NUM}"
+              "racemap/elevation-service:${CIRCLE_BUILD_NUM}"
             sleep 5
             RESULT=$(curl \
               -d '[[51.3, 13.4], [51.4, 13.3]]' \
@@ -68,15 +68,15 @@ jobs:
           command: |
             echo $DOCKER_PASS | docker login -u $DOCKER_USER --password-stdin
             docker tag \
-              "normanrz/elevation-service:${CIRCLE_BUILD_NUM}" \
-              "normanrz/elevation-service:${CIRCLE_BRANCH}"
-            docker push "normanrz/elevation-service:${CIRCLE_BUILD_NUM}"
-            docker push "normanrz/elevation-service:${CIRCLE_BRANCH}"
+              "racemap/elevation-service:${CIRCLE_BUILD_NUM}" \
+              "racemap/elevation-service:${CIRCLE_BRANCH}"
+            docker push "racemap/elevation-service:${CIRCLE_BUILD_NUM}"
+            docker push "racemap/elevation-service:${CIRCLE_BRANCH}"
             if [ "${CIRCLE_BRANCH}" == "master" ]; then
               docker tag \
-                "normanrz/elevation-service:${CIRCLE_BUILD_NUM}" \
-                "normanrz/elevation-service:latest"
-              docker push "normanrz/elevation-service:latest"
+                "racemap/elevation-service:${CIRCLE_BUILD_NUM}" \
+                "racemap/elevation-service:latest"
+              docker push "racemap/elevation-service:latest"
             fi
             docker logout
 
