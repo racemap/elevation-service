@@ -12,11 +12,13 @@
   "dependencies": {
     "limited-map": "^0.0.1",
     "lru-memoize": "^1.0.2",
+    "memoizee": "^0.4.14",
     "micro": "^9.3.2",
     "micro-cors": "^0.1.1",
-    "micro-query": "^0.3.0"
+    "micro-query": "^0.3.0",
+    "node-fetch": "^2.6.1"
   },
   "devDependencies": {
-    "prettier": "^1.14.0"
+    "prettier": "^2.2.1"
   }
 }
