@@ -1,8 +1,8 @@
-const assert = require("assert");
+const assert = require('assert');
 
-const { FileTileSet } = require("../tileset");
+const { FileTileSet } = require('../tileset');
 
-(async function() {
+(async function () {
   const tileset = new FileTileSet(__dirname);
 
   const testLatLng = [51.3, 13.4];

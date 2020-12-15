@@ -1,5 +1,5 @@
-const { readFile } = require("fs");
-const { promisify } = require("util");
+const { readFile } = require('fs');
+const { promisify } = require('util');
 
 const asyncReadFile = promisify(readFile);
 
@@ -8,13 +8,18 @@ function avg(v1, v2, f) {
 }
 
 function bufferStream(stream) {
-  return new Promise(resolve => {
+  return new Promise((resolve, reject) => {
     const bufs = [];
-    stream.on("data", d => {
+    stream.on('data', (d) => {
       bufs.push(d);
     });
-    stream.on("end", () => {
+    stream.on('end', () => {
+      console.log("end")
       resolve(Buffer.concat(bufs));
+    });
+    stream.on('error', (err) => {
+      console.log("error")
+      reject(err);
     });
   });
 }
@@ -27,9 +32,9 @@ class HGT {
     this.options = Object.assign(
       {},
       {
-        interpolation: HGT.bilinear
+        interpolation: HGT.bilinear,
       },
-      options
+      options,
     );
 
     if (buffer.length === 12967201 * 2) {
@@ -39,9 +44,7 @@ class HGT {
       this._resolution = 3;
       this._size = 1201;
     } else {
-      throw new Error(
-        "Unknown tile format (1 arcsecond and 3 arcsecond supported)."
-      );
+      throw new Error('Unknown tile format (1 arcsecond and 3 arcsecond supported).');
     }
   }
 
@@ -99,12 +102,7 @@ class HGT {
 
     if (row < 0 || col < 0 || row > size || col > size) {
       throw new Error(
-        "Latitude/longitude is outside tile bounds (row=" +
-          row +
-          ", col=" +
-          col +
-          "; size=" +
-          size
+        'Latitude/longitude is outside tile bounds (row=' + row + ', col=' + col + '; size=' + size,
       );
     }
 
