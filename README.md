@@ -47,7 +47,7 @@ docker run --rm -v/path/to/data/folder:/app/data -p3000:3000 racemap/elevation-s
 Run the docker container:
 
 ```bash
-docker run --rm -eTILE_SET_PATH=s3:// -p3000:3000 racemap/elevation-service
+docker run --rm -eTILE_SET_PATH=s3://elevation-tiles-prod/skadi -p3000:3000 racemap/elevation-service
 ```
 
 ## License
