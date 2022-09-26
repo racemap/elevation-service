@@ -2,7 +2,7 @@ FROM rust:1-buster as builder
 
 COPY . /app
 WORKDIR /app
-RUN cargo build --release
+RUN cargo build --release --bins --tests
 
 ENV PORT 3000
 ENV TILE_SET_CACHE 128

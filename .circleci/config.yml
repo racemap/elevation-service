@@ -15,7 +15,7 @@ jobs:
             docker run \
               --rm \
               "racemap/elevation-service:${CIRCLE_BUILD_NUM}" \
-              yarn test
+              cargo test
 
       # - run:
       #     name: Run S3 tests
