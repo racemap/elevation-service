@@ -47,7 +47,7 @@ jobs:
           -eTILE_SET_PATH=s3:// \
           -p3000:3000 \
           --name elevation \
-          "racemap/elevation-service:${{ steps.meta.outputs.tags[0] }}"
+          "racemap/elevation-service:${{ steps.meta.outputs.version }}"
           sleep 5
           RESULT=$(curl \
             -d '[[51.3, 13.4], [51.4, 13.3]]' \
@@ -71,7 +71,7 @@ jobs:
             -p3000:3000 \
             --name elevation \
             -v$(pwd)/data:/app/data \
-            "racemap/elevation-service:${{ steps.meta.outputs.tags[0] }}"
+            "racemap/elevation-service:${{ steps.meta.outputs.version }}"
           sleep 5
           RESULT=$(curl \
             -d '[[51.3, 13.4], [51.4, 13.3]]' \
