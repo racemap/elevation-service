@@ -58,7 +58,15 @@ async function handleGET(req, res) {
 }
 
 async function handleGETStatus(req, res) {
-  return send(res, 200, 'Ok');
+  try {
+    // try to receive a test value
+    await tiles.getElevation([0, 0]);
+    return send(res, 200, 'Ok');
+  } catch (error) {
+    console.error('Status Check Failed!');
+    console.error(error);
+    return send(res, 500, 'Error');
+  }
 }
 
 async function handler(req, res) {
