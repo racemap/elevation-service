@@ -60,10 +60,10 @@ async function handleGET(req, res) {
 async function handleGETStatus(req, res) {
   try {
     // try to receive a test value
-		const randomLng = Math.random() * 360 - 180;
-		const randomLat = Math.random() * 180 - 90;
+    const randomLng = Math.random() * 360 - 180;
+    const randomLat = Math.random() * 180 - 90;
 
-		await tiles.getElevation([randomLat, randomLng]);
+    await tiles.getElevation([randomLat, randomLng]);
     return send(res, 200, 'Ok');
   } catch (error) {
     console.error('Status Check Failed!');
