@@ -60,7 +60,10 @@ async function handleGET(req, res) {
 async function handleGETStatus(req, res) {
   try {
     // try to receive a test value
-    await tiles.getElevation([0, 0]);
+    const randomLng = Math.random() * 360 - 180;
+    const randomLat = Math.random() * 180 - 90;
+
+    await tiles.getElevation([randomLat, randomLng]);
     return send(res, 200, 'Ok');
   } catch (error) {
     console.error('Status Check Failed!');
@@ -75,7 +78,7 @@ async function handler(req, res) {
       case 'POST':
         return await handlePOST(req, res);
       case 'GET':
-        if (req.url == '/status') {
+        if (req.url === '/status') {
           return await handleGETStatus(req, res);
         } else {
           return await handleGET(req, res);

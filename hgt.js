@@ -14,11 +14,11 @@ function bufferStream(stream) {
       bufs.push(d);
     });
     stream.on('end', () => {
-      console.log("end")
+      console.log('end');
       resolve(Buffer.concat(bufs));
     });
     stream.on('error', (err) => {
-      console.log("error")
+      console.log('error');
       reject(err);
     });
   });
