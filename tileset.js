@@ -1,5 +1,4 @@
 const path = require('path');
-const fetch  = require('node-fetch');
 const memoize = require('memoizee');
 const { readFile } = require('fs/promises');
 const { promisify } = require('util');
