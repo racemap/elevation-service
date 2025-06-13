@@ -8,6 +8,11 @@ node_modules/
 !.yarn/sdks
 !.yarn/versions
 
+.env
+
+# Local test data
+data
+
 # Added by cargo
 
 /target
