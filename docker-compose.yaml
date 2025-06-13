@@ -1,0 +1,50 @@
+services:
+  elevation:
+    image: racemap/elevation-service:v1.1.0
+    build:
+      context: .
+      dockerfile: Dockerfile
+    restart: unless-stopped
+    depends_on:
+      - nginx-proxy
+    environment:
+      - VIRTUAL_HOST=${DOMAIN}
+      - LETS_ENCRYPT_HOST=${DOMAIN}
+      - LETS_ENCRYPT_EMAIL=${EMAIL}
+    expose:
+      - "3000"
+  
+  nginx-proxy:
+    image: nginxproxy/nginx-proxy:1.7.1
+    container_name: nginx-proxy
+    restart: unless-stopped
+    ports:
+      - "80:80"
+      - "443:443"
+    environment:
+      - TRUST_DOWNSTREAM_PROXY=false
+    volumes:
+      - /var/run/docker.sock:/tmp/docker.sock:ro
+      - ./certs:/etc/nginx/certs
+      - ./vhost.d:/etc/nginx/vhost.d
+      - ./html:/usr/share/nginx/html
+    profiles:
+      - production
+
+  acme-companion:
+    image: nginxproxy/acme-companion:2.6.0
+    container_name: nginx-proxy-acme
+    restart: unless-stopped
+    depends_on:
+      - nginx-proxy
+    environment:
+      - DEFAULT_EMAIL=${EMAIL}
+      - NGINX_PROXY_CONTAINER=nginx-proxy
+    volumes:
+      - /var/run/docker.sock:/var/run/docker.sock:ro
+      - ./certs:/etc/nginx/certs
+      - ./vhost.d:/etc/nginx/vhost.d
+      - ./html:/usr/share/nginx/html
+      - ./acme:/etc/acme.sh
+    profiles:
+      - production
