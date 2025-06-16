@@ -17,21 +17,22 @@ services:
       TILE_SET_CACHE: ${TILE_SET_CACHE}
       MAX_POST_SIZE: ${MAX_POST_SIZE}
     expose:
-      - "3000"
+      - '3000'
 
   nginx-proxy:
     image: nginxproxy/nginx-proxy:1.7.1
     container_name: nginx-proxy
     restart: unless-stopped
     ports:
-      - "80:80"
-      - "443:443"
+      - '80:80'
+      - '443:443'
     environment:
       TRUST_DOWNSTREAM_PROXY: false
     volumes:
       - /var/run/docker.sock:/tmp/docker.sock:ro
       - certs:/etc/nginx/certs
       - html:/usr/share/nginx/html
+      - ./tools/nginx/rate-limit.conf:/etc/nginx/conf.d/rate-limit.conf:ro
     profiles:
       - production
 
