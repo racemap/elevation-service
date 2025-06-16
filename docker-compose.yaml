@@ -5,6 +5,8 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    cpus: ${CPUS_LIMIT}
+    mem_limit: ${MEMORY_LIMIT}
     depends_on:
       - nginx-proxy
     volumes:
@@ -32,7 +34,6 @@ services:
       - /var/run/docker.sock:/tmp/docker.sock:ro
       - certs:/etc/nginx/certs
       - html:/usr/share/nginx/html
-      - ./tools/nginx/rate-limit.conf:/etc/nginx/conf.d/rate-limit.conf:ro
     profiles:
       - production
 
