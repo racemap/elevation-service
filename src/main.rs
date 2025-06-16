@@ -22,7 +22,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         gzip: true,
     };
     let tileset = TileSetWithCache::new(options)?;
-    let elevation = tileset.get_elevation((45.123, 9.456)).await?;
+    let elevation = tileset.get_elevation(45.123, 9.456).await?;
     println!("Elevation: {} meters", elevation);
 
     Ok(())

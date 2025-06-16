@@ -37,10 +37,10 @@ impl HGT {
         })
     }
 
-    pub fn get_elevation(&self, lat_lng: (f64, f64)) -> Result<i16, Error> {
+    pub fn get_elevation(&self, lat: f64, lng: f64) -> Result<i16, Error> {
         let size = self.size - 1;
-        let row = (lat_lng.0 - self.sw_lat_lng.0) * size as f64;
-        let col = (lat_lng.1 - self.sw_lat_lng.1) * size as f64;
+        let row = (lat - self.sw_lat_lng.0) * size as f64;
+        let col = (lng - self.sw_lat_lng.1) * size as f64;
 
         if row < 0.0 || col < 0.0 || row > size as f64 || col > size as f64 {
             return Err(Error::new(

@@ -20,8 +20,8 @@ impl FileTileSet {
 
     pub async fn get_tile(
         &self,
-        lat: i32,
-        lng: i32,
+        lat: f64,
+        lng: f64,
     ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let tile_path: String = TileSetWithCache::get_file_path(lat, lng);
         let file_path = self.folder.join(tile_path);
@@ -36,20 +36,5 @@ impl FileTileSet {
         } else {
             Ok(buffer)
         }
-    }
-
-    pub async fn get_elevation(&self, lat_lng: (f64, f64)) -> Result<i16, Error> {
-        let lat = lat_lng.0.floor() as i32;
-        let lng = lat_lng.1.floor() as i32;
-
-        // Fetch the tile data
-        let buffer = self
-            .get_tile(lat, lng)
-            .await
-            .expect("Failed to get tile data");
-
-        // Create HGT instance and get elevation
-        let hgt = HGT::new(buffer, (lat as f64, lng as f64))?;
-        hgt.get_elevation(lat_lng)
     }
 }
