@@ -8,7 +8,7 @@ use std::{env, path::PathBuf};
 #[derive(Clone, Debug)]
 pub struct Config {
     pub cache_size: u64,
-    pub tile_folder: PathBuf,
+    pub tile_folder: String,
     pub max_post_size: String,
     pub max_parallel_processing: u64,
 }
@@ -22,9 +22,14 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
             .ok()
             .and_then(|s| s.parse::<u64>().ok())
             .unwrap_or(128),
-        tile_folder: env::var("TILE_SET_PATH")
-            .map(PathBuf::from)
-            .unwrap_or_else(|_| env::current_dir().expect("Failed to get current_dir")),
+        tile_folder: env::var("TILE_SET_PATH").unwrap_or_else(|_| {
+            String::from(
+                env::current_dir()
+                    .expect("Failed to get current_dir")
+                    .to_str()
+                    .expect("Failed to convert path to string"),
+            )
+        }),
         max_post_size: env::var("MAX_POST_SIZE").unwrap_or_else(|_| "500kb".to_string()),
         max_parallel_processing: env::var("MAX_PARALLEL_PROCESSING")
             .ok()

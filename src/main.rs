@@ -1,9 +1,6 @@
-use crate::{file_tileset::FileTileSet, tileset::TileSetOptions};
+use crate::tileset::tileset::{TileSetOptions, TileSetWithCache};
 
 mod config;
-mod file_tileset;
-mod hgt;
-mod s3_tileset;
 mod tileset;
 
 #[tokio::main]
@@ -19,11 +16,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         config.max_parallel_processing
     );
 
-    let options = TileSetOptions::default();
-    let file_tileset = FileTileSet::new(config.tile_folder, options);
-
-    let tile_data = file_tileset.get_tile(45, 9).await?;
-    println!("Tile data size: {} bytes", tile_data.len());
+    let options = TileSetOptions {
+        path: config.tile_folder.clone(),
+        cache_size: config.cache_size,
+        gzip: true,
+    };
+    let tileset = TileSetWithCache::new(options)?;
+    let elevation = tileset.get_elevation((45.123, 9.456)).await?;
+    println!("Elevation: {} meters", elevation);
 
     Ok(())
 }

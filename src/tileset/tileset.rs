@@ -1,0 +1,110 @@
+use crate::tileset::file_tileset::FileTileSet;
+use crate::tileset::hgt::HGT;
+use crate::tileset::s3_tileset::S3TileSet;
+use std::collections::HashMap;
+use std::sync::Mutex;
+
+#[derive(Debug, Clone)]
+pub struct TileSetOptions {
+    pub path: String,
+    pub cache_size: u64,
+    pub gzip: bool,
+}
+
+impl Default for TileSetOptions {
+    fn default() -> Self {
+        Self {
+            path: String::new(),
+            cache_size: 128,
+            gzip: true,
+        }
+    }
+}
+
+pub enum TileSet {
+    File(FileTileSet),
+    S3(S3TileSet),
+}
+
+impl TileSet {
+    pub fn new(options: TileSetOptions) -> Result<Self, Box<dyn std::error::Error>> {
+        if options.path.starts_with("s3://") {
+            let base_url = options.path.trim_start_matches("s3://").to_string();
+            Ok(TileSet::S3(S3TileSet::new(base_url, options)))
+        } else {
+            Ok(TileSet::File(FileTileSet::new(
+                options.path.clone(),
+                options,
+            )))
+        }
+    }
+}
+
+pub struct TileSetCache {
+    cache: Mutex<HashMap<(i32, i32), Vec<u8>>>,
+}
+
+impl TileSetCache {
+    pub fn new() -> Self {
+        Self {
+            cache: Mutex::new(HashMap::new()),
+        }
+    }
+
+    pub fn get(&self, key: &(i32, i32)) -> Option<Vec<u8>> {
+        let cache = self.cache.lock().unwrap();
+        cache.get(key).cloned()
+    }
+
+    pub fn insert(&self, key: (i32, i32), value: Vec<u8>) {
+        let mut cache = self.cache.lock().unwrap();
+        cache.insert(key, value);
+    }
+}
+
+pub struct TileSetWithCache {
+    tileset: TileSet,
+    cache: TileSetCache,
+}
+
+impl TileSetWithCache {
+    pub fn new(options: TileSetOptions) -> Result<Self, Box<dyn std::error::Error>> {
+        let tileset = TileSet::new(options)?;
+        let cache = TileSetCache::new();
+        Ok(Self { tileset, cache })
+    }
+
+    pub fn get_file_path(lat: i32, lng: i32) -> String {
+        let lat_prefix = if lat < 0 { "S" } else { "N" };
+        let lng_prefix = if lng < 0 { "W" } else { "E" };
+        let lat_file_name = format!("{}{:02}", lat_prefix, lat.abs());
+        let lng_file_name = format!("{}{:03}", lng_prefix, lng.abs());
+        format!(
+            "{}/{}{}.hgt.gz",
+            lat_file_name, lat_file_name, lng_file_name
+        )
+    }
+
+    pub async fn get_elevation(
+        &self,
+        lat_lng: (f64, f64),
+    ) -> Result<i16, Box<dyn std::error::Error>> {
+        let lat = lat_lng.0.floor() as i32;
+        let lng = lat_lng.1.floor() as i32;
+
+        // Simulate fetching the tile (this would be implemented in FileTileSet or S3TileSet)
+        let cache_key = (lat, lng);
+
+        let tile_data = if let Some(data) = self.cache.get(&cache_key) {
+            data.clone()
+        } else {
+            // Fetch the tile data (this would be async in a real implementation)
+            let tile_data = vec![]; // Replace with actual tile fetching logic
+            self.cache.insert(cache_key, tile_data.clone());
+            tile_data
+        };
+
+        let hgt = HGT::new(tile_data, (lat as f64, lng as f64))?;
+        hgt.get_elevation(lat_lng).map_err(|e| e.into())
+    }
+}
