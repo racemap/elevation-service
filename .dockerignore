@@ -1,1 +1,9 @@
-node_modules
+target
+.github
+.env
+.dockerignore
+Dockerfile
+License
+README.md
+.gitignore
+docker-compose.yml
