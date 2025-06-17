@@ -37,19 +37,19 @@ pub async fn get_elevation(
 }
 
 pub async fn post_elevations(
-    locations: Vec<LatLng>,
+    locations: Vec<(f64, f64)>,
     tileset: Arc<TileSetWithCache>,
 ) -> Result<impl Reply, Rejection> {
     let mut elevations = Vec::new();
     for loc in locations {
-        if loc.lat < -90.0 || loc.lat > 90.0 || loc.lng < -180.0 || loc.lng > 180.0 {
+        if loc.0 < -90.0 || loc.0 > 90.0 || loc.1 < -180.0 || loc.1 > 180.0 {
             return Ok(reply::with_status(
                 "Invalid Latitude or Longitude",
                 warp::http::StatusCode::BAD_REQUEST,
             )
             .into_response());
         }
-        match tileset.get_elevation(loc.lat, loc.lng).await {
+        match tileset.get_elevation(loc.0, loc.1).await {
             Ok(elevation) => elevations.push(elevation as f64),
             Err(_) => {
                 return Ok(reply::with_status(

@@ -4,8 +4,8 @@ WORKDIR /app
 
 # Copy source code and build
 COPY . .
-RUN cargo test
 RUN cargo build --release
+RUN cargo test --release
 
 FROM rust:1.87.0-slim AS runtime
 
@@ -27,4 +27,4 @@ EXPOSE 3000
 
 HEALTHCHECK CMD curl --fail http://localhost:3000/status || exit 1
 
-CMD ["elevation-service"]
+ENTRYPOINT [ "elevation-service" ]
