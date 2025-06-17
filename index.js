@@ -26,7 +26,9 @@ async function handlePOST(req, res) {
   if (
     !payload ||
     !Array.isArray(payload) ||
-    !payload.every(([lat, lng]) => validateLat(lat) && validateLng(lng))
+    !payload.every(
+      (ll) => Array.isArray(ll) && ll.length === 2 && validateLat(ll[0]) && validateLng(ll[1]),
+    )
   ) {
     return send(res, 400, {
       error:

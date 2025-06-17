@@ -14,5 +14,9 @@ node_modules/
 data
 
 # Added by cargo
-
 /target
+
+# ACME
+acme
+certs
+html
