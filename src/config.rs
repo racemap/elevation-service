@@ -11,6 +11,7 @@ pub struct Config {
     pub tile_folder: String,
     pub max_post_size: String,
     pub max_parallel_processing: u64,
+    pub port: u16,
 }
 
 // Initialize dotenv and config only once
@@ -35,5 +36,9 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
             .ok()
             .and_then(|s| s.parse::<u64>().ok())
             .unwrap_or(500),
+        port: env::var("PORT")
+            .ok()
+            .and_then(|s| s.parse::<u16>().ok())
+            .unwrap_or(3000),
     }
 });
