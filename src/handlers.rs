@@ -1,6 +1,5 @@
 use rand;
 use std::sync::Arc;
-
 use warp::{Rejection, Reply, reply};
 
 use crate::{ElevationResponse, LatLng, tileset::TileSetWithCache};

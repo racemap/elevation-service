@@ -1,5 +1,6 @@
 // src/config.rs
 
+use byte_unit::Byte;
 use dotenvy::dotenv;
 use once_cell::sync::Lazy;
 use std::env;
@@ -9,8 +10,7 @@ use std::env;
 pub struct Config {
     pub cache_size: u64,
     pub tile_folder: String,
-    pub max_post_size: String,
-    pub max_parallel_processing: u64,
+    pub max_post_size: Byte,
     pub port: u16,
 }
 
@@ -31,11 +31,12 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
                     .expect("Failed to convert path to string"),
             )
         }),
-        max_post_size: env::var("MAX_POST_SIZE").unwrap_or_else(|_| "500kb".to_string()),
-        max_parallel_processing: env::var("MAX_PARALLEL_PROCESSING")
+        max_post_size: env::var("MAX_POST_SIZE")
             .ok()
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(500),
+            .and_then(|s| Byte::parse_str(s, true).ok())
+            .unwrap_or_else(|| {
+                Byte::parse_str("500kb", true).unwrap() // Default to 10 MB
+            }),
         port: env::var("PORT")
             .ok()
             .and_then(|s| s.parse::<u16>().ok())

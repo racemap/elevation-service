@@ -34,10 +34,6 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     debug!("Cache Size: {}", config.cache_size);
     debug!("Tile Folder: {:?}", config.tile_folder);
     debug!("Max Post Size: {}", config.max_post_size);
-    debug!(
-        "Max Parallel Processing: {}",
-        config.max_parallel_processing
-    );
     debug!("Port: {}", config.port);
 
     let options = TileSetOptions {
@@ -67,6 +63,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let post_elevation_route = warp::path::end()
         .and(warp::post())
         .and(warp::body::json())
+        .and(warp::body::content_length_limit(
+            config.max_post_size.as_u64(),
+        ))
         .and(tileset_filter.clone())
         .and_then(post_elevations);
 
