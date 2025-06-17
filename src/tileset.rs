@@ -1,8 +1,8 @@
 use crate::tileset::file_tileset::FileTileSet;
 use crate::tileset::hgt::HGT;
 use crate::tileset::s3_tileset::S3TileSet;
-use std::collections::HashMap;
-use std::sync::Mutex;
+use std::collections::{HashMap, VecDeque};
+use tokio::sync::Mutex;
 
 mod file_tileset;
 mod hgt;
@@ -46,23 +46,48 @@ impl TileSet {
 
 pub struct TileSetCache {
     cache: Mutex<HashMap<(i32, i32), Vec<u8>>>,
+    order: Mutex<VecDeque<(i32, i32)>>, // Tracks the order of keys for LRU eviction
+    max_size: usize,                    // Maximum number of tiles in the cache
 }
 
 impl TileSetCache {
-    pub fn new() -> Self {
+    pub fn new(max_size: usize) -> Self {
         Self {
             cache: Mutex::new(HashMap::new()),
+            order: Mutex::new(VecDeque::new()),
+            max_size,
         }
     }
 
-    pub fn get(&self, key: &(i32, i32)) -> Option<Vec<u8>> {
-        let cache = self.cache.lock().unwrap();
-        cache.get(key).cloned()
+    pub async fn get(&self, key: &(i32, i32)) -> Option<Vec<u8>> {
+        let cache = self.cache.lock().await;
+        if let Some(value) = cache.get(key).cloned() {
+            let mut order = self.order.lock().await;
+            if let Some(pos) = order.iter().position(|&k| k == *key) {
+                // Move the accessed key to the back (most recently used)
+                let key = order.remove(pos).unwrap();
+                order.push_back(key);
+            }
+            Some(value)
+        } else {
+            None
+        }
     }
 
-    pub fn insert(&self, key: (i32, i32), value: Vec<u8>) {
-        let mut cache = self.cache.lock().unwrap();
+    pub async fn insert(&self, key: (i32, i32), value: Vec<u8>) {
+        let mut cache = self.cache.lock().await;
+        let mut order = self.order.lock().await;
+
+        if cache.len() >= self.max_size {
+            // Evict the least recently used item
+            if let Some(lru_key) = order.pop_front() {
+                cache.remove(&lru_key);
+            }
+        }
+
+        // Insert the new item and mark it as most recently used
         cache.insert(key, value);
+        order.push_back(key);
     }
 }
 
@@ -73,8 +98,8 @@ pub struct TileSetWithCache {
 
 impl TileSetWithCache {
     pub fn new(options: TileSetOptions) -> Result<Self, Box<dyn std::error::Error>> {
-        let tileset = TileSet::new(options)?;
-        let cache = TileSetCache::new();
+        let tileset = TileSet::new(options.clone())?;
+        let cache = TileSetCache::new(options.cache_size as usize); // Use cache_size as limit
         Ok(Self { tileset, cache })
     }
 
@@ -107,7 +132,7 @@ impl TileSetWithCache {
         let lng_floor = lng.floor();
         let cache_key = (lat_floor as i32, lng_floor as i32);
 
-        let tile_data = if let Some(data) = self.cache.get(&cache_key) {
+        let tile_data = if let Some(data) = self.cache.get(&cache_key).await {
             data.clone()
         } else {
             // Fetch the tile data (this would be async in a real implementation)
@@ -115,7 +140,7 @@ impl TileSetWithCache {
                 TileSet::File(file_tileset) => file_tileset.get_tile(lat_floor, lng_floor).await?,
                 TileSet::S3(s3_tileset) => s3_tileset.get_tile(lat_floor, lng_floor).await?,
             };
-            self.cache.insert(cache_key, tile_data.clone());
+            self.cache.insert(cache_key, tile_data.clone()).await;
             tile_data
         };
 
