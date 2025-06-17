@@ -2,7 +2,7 @@
 
 use dotenvy::dotenv;
 use once_cell::sync::Lazy;
-use std::{env, path::PathBuf};
+use std::env;
 
 // Define the Config struct
 #[derive(Clone, Debug)]

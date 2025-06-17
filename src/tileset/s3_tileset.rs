@@ -21,7 +21,7 @@ impl S3TileSet {
         let file_path = format!(
             "{}/{}",
             self.base_url,
-            TileSetWithCache::get_file_path(lat, lng)
+            TileSetWithCache::get_file_path(lat, lng).expect("Failed to get tile path")
         );
         let response = Client::new().get(&file_path).send().await?.bytes().await?;
         // Handle gzip decompression if needed

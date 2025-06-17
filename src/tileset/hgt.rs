@@ -2,6 +2,7 @@ use std::io::{Error, ErrorKind};
 
 use log::debug;
 
+#[derive(Debug, Clone)]
 pub struct HGT {
     buffer: Vec<u8>,
     sw_lat_lng: (f64, f64),
@@ -111,5 +112,48 @@ impl HGT {
 
         let elevation = i16::from_be_bytes([self.buffer[offset], self.buffer[offset + 1]]);
         Ok(elevation)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use std::io::ErrorKind;
+
+    #[test]
+    fn test_hgt_creation_valid_buffer() {
+        let buffer = vec![0; 25934402]; // Valid buffer size for 1 arcsecond resolution
+        let sw_lat_lng = (0.0, 0.0);
+        let hgt = HGT::new(buffer, sw_lat_lng);
+        assert!(hgt.is_ok());
+    }
+
+    #[test]
+    fn test_hgt_creation_invalid_buffer() {
+        let buffer = vec![0; 100]; // Invalid buffer size
+        let sw_lat_lng = (0.0, 0.0);
+        let hgt = HGT::new(buffer, sw_lat_lng);
+        assert!(hgt.is_err());
+        assert_eq!(hgt.unwrap_err().kind(), ErrorKind::InvalidData);
+    }
+
+    #[test]
+    fn test_get_elevation_valid_coordinates() {
+        let buffer = vec![0; 25934402]; // Valid buffer size for 1 arcsecond resolution
+        let sw_lat_lng = (0.0, 0.0);
+        let hgt = HGT::new(buffer, sw_lat_lng).unwrap();
+        let elevation = hgt.get_elevation(0.5, 0.5);
+        assert!(elevation.is_ok());
+        assert_eq!(elevation.unwrap(), 0); // Default buffer values lead to elevation 0
+    }
+
+    #[test]
+    fn test_get_elevation_out_of_bounds() {
+        let buffer = vec![0; 25934402]; // Valid buffer size for 1 arcsecond resolution
+        let sw_lat_lng = (0.0, 0.0);
+        let hgt = HGT::new(buffer, sw_lat_lng).unwrap();
+        let elevation = hgt.get_elevation(-1.0, -1.0);
+        assert!(elevation.is_err());
+        assert_eq!(elevation.unwrap_err().kind(), ErrorKind::InvalidInput);
     }
 }

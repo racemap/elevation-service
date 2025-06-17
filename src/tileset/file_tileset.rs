@@ -23,7 +23,8 @@ impl FileTileSet {
         lat: f64,
         lng: f64,
     ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-        let tile_path: String = TileSetWithCache::get_file_path(lat, lng);
+        let tile_path: String =
+            TileSetWithCache::get_file_path(lat, lng).expect("Failed to get tile path");
         let file_path = self.folder.join(tile_path);
         debug!("Fetching tile from: {:?}", file_path);
 
