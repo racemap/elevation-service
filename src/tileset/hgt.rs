@@ -6,7 +6,6 @@ pub struct HGT {
     buffer: Vec<u8>,
     sw_lat_lng: (f64, f64),
     size: usize,
-    resolution: usize,
 }
 
 impl HGT {
@@ -40,7 +39,6 @@ impl HGT {
             buffer,
             sw_lat_lng,
             size,
-            resolution,
         })
     }
 

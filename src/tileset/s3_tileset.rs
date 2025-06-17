@@ -1,4 +1,4 @@
-use crate::tileset::tileset::{TileSetOptions, TileSetWithCache};
+use crate::tileset::{TileSetOptions, TileSetWithCache};
 use flate2::read::GzDecoder;
 use reqwest::Client;
 use std::io::Read;

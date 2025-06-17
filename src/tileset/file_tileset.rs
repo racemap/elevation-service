@@ -1,8 +1,7 @@
-use crate::tileset::hgt::HGT;
-use crate::tileset::tileset::{TileSetOptions, TileSetWithCache};
+use crate::tileset::{TileSetOptions, TileSetWithCache};
 use flate2::read::GzDecoder;
 use log::debug;
-use std::io::{Error, Read};
+use std::io::Read;
 use std::path::PathBuf;
 use tokio::fs;
 

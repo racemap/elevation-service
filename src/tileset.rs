@@ -4,6 +4,10 @@ use crate::tileset::s3_tileset::S3TileSet;
 use std::collections::HashMap;
 use std::sync::Mutex;
 
+mod file_tileset;
+mod hgt;
+mod s3_tileset;
+
 #[derive(Debug, Clone)]
 pub struct TileSetOptions {
     pub path: String,

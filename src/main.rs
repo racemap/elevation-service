@@ -1,4 +1,4 @@
-use crate::tileset::tileset::{TileSetOptions, TileSetWithCache};
+use crate::tileset::{TileSetOptions, TileSetWithCache};
 use env_logger;
 use log::{debug, info};
 
