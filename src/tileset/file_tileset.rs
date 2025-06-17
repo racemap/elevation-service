@@ -25,6 +25,8 @@ impl FileTileSet {
     ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let tile_path: String = TileSetWithCache::get_file_path(lat, lng);
         let file_path = self.folder.join(tile_path);
+        println!("Fetching tile from: {:?}", file_path);
+
         let buffer = fs::read(file_path.as_path()).await?;
 
         // Handle gzip decompression if needed
