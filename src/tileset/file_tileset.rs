@@ -1,6 +1,7 @@
 use crate::tileset::hgt::HGT;
 use crate::tileset::tileset::{TileSetOptions, TileSetWithCache};
 use flate2::read::GzDecoder;
+use log::debug;
 use std::io::{Error, Read};
 use std::path::PathBuf;
 use tokio::fs;
@@ -25,7 +26,7 @@ impl FileTileSet {
     ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
         let tile_path: String = TileSetWithCache::get_file_path(lat, lng);
         let file_path = self.folder.join(tile_path);
-        println!("Fetching tile from: {:?}", file_path);
+        debug!("Fetching tile from: {:?}", file_path);
 
         let buffer = fs::read(file_path.as_path()).await?;
 

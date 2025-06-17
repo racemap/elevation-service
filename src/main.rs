@@ -1,4 +1,6 @@
 use crate::tileset::tileset::{TileSetOptions, TileSetWithCache};
+use env_logger;
+use log::{debug, info};
 
 mod config;
 mod tileset;
@@ -8,10 +10,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Access the configuration values
     let config = config::CONFIG.clone();
 
-    println!("Cache Size: {}", config.cache_size);
-    println!("Tile Folder: {:?}", config.tile_folder);
-    println!("Max Post Size: {}", config.max_post_size);
-    println!(
+    // Initialize the logger
+    env_logger::init();
+
+    debug!("Cache Size: {}", config.cache_size);
+    debug!("Tile Folder: {:?}", config.tile_folder);
+    debug!("Max Post Size: {}", config.max_post_size);
+    debug!(
         "Max Parallel Processing: {}",
         config.max_parallel_processing
     );
@@ -23,7 +28,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     };
     let tileset = TileSetWithCache::new(options)?;
     let elevation = tileset.get_elevation(45.123, 9.456).await?;
-    println!("Elevation: {} meters", elevation);
+    info!("Elevation: {} meters", elevation);
 
     Ok(())
 }

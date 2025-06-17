@@ -1,5 +1,7 @@
 use std::io::{Error, ErrorKind};
 
+use log::debug;
+
 pub struct HGT {
     buffer: Vec<u8>,
     sw_lat_lng: (f64, f64),
@@ -29,7 +31,7 @@ impl HGT {
             }
         }
 
-        println!(
+        debug!(
             "HGT tile created with size: {}, resolution: {}",
             size, resolution
         );
@@ -78,25 +80,25 @@ impl HGT {
         let value_high =
             (value_high_low as f64 * (1.0 - col_frac) + value_high_high as f64 * col_frac) as i16;
 
-        println!("row = {}", row);
-        println!("col = {}", col);
-        println!("row_low = {}", row_low);
-        println!("row_high = {}", row_high);
-        println!("row_frac = {}", row_frac);
-        println!("col_low = {}", col_low);
-        println!("col_high = {}", col_high);
-        println!("col_frac = {}", col_frac);
+        debug!("row = {}", row);
+        debug!("col = {}", col);
+        debug!("row_low = {}", row_low);
+        debug!("row_high = {}", row_high);
+        debug!("row_frac = {}", row_frac);
+        debug!("col_low = {}", col_low);
+        debug!("col_high = {}", col_high);
+        debug!("col_frac = {}", col_frac);
 
-        println!("value_low_low = {}", value_low_low);
-        println!("value_high_low = {}", value_high_low);
-        println!("value_high_high = {}", value_high_high);
-        println!("value_low_high = {}", value_low_high);
+        debug!("value_low_low = {}", value_low_low);
+        debug!("value_high_low = {}", value_high_low);
+        debug!("value_high_high = {}", value_high_high);
+        debug!("value_low_high = {}", value_low_high);
 
-        println!("value_low = {}", value_low);
-        println!("value_high = {}", value_high);
+        debug!("value_low = {}", value_low);
+        debug!("value_high = {}", value_high);
 
         let value = (value_low as f64 * (1.0 - row_frac) + value_high as f64 * row_frac) as i16;
-        println!("Final interpolated value: {}", value);
+        debug!("Final interpolated value: {}", value);
         Ok(value)
     }
 
