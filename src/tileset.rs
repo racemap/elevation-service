@@ -1,12 +1,12 @@
 use crate::tileset::file_tileset::FileTileSet;
 use crate::tileset::hgt::HGT;
-use crate::tileset::s3_tileset::S3TileSet;
+use crate::tileset::http_tileset::HTTPTileSet;
 use std::collections::{HashMap, VecDeque};
 use tokio::sync::Mutex;
 
 mod file_tileset;
 mod hgt;
-mod s3_tileset;
+mod http_tileset;
 
 #[derive(Debug, Clone)]
 pub struct TileSetOptions {
@@ -27,14 +27,16 @@ impl Default for TileSetOptions {
 
 pub enum TileSet {
     File(FileTileSet),
-    S3(S3TileSet),
+    HTTP(HTTPTileSet),
 }
 
 impl TileSet {
     pub fn new(options: TileSetOptions) -> Result<Self, Box<dyn std::error::Error>> {
-        if options.path.starts_with("s3://") {
-            let base_url = options.path.trim_start_matches("s3://").to_string();
-            Ok(TileSet::S3(S3TileSet::new(base_url, options)))
+        if options.path.starts_with("http://") || options.path.starts_with("https://") {
+            Ok(TileSet::HTTP(HTTPTileSet::new(
+                options.path.clone(),
+                options,
+            )))
         } else {
             Ok(TileSet::File(FileTileSet::new(
                 options.path.clone(),
@@ -138,7 +140,7 @@ impl TileSetWithCache {
             // Fetch the tile data (this would be async in a real implementation)
             let tile_data = match &self.tileset {
                 TileSet::File(file_tileset) => file_tileset.get_tile(lat_floor, lng_floor).await?,
-                TileSet::S3(s3_tileset) => s3_tileset.get_tile(lat_floor, lng_floor).await?,
+                TileSet::HTTP(s3_tileset) => s3_tileset.get_tile(lat_floor, lng_floor).await?,
             };
             self.cache.insert(cache_key, tile_data.clone()).await;
             tile_data

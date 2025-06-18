@@ -1,4 +1,5 @@
 use crate::{
+    config::{Config, get_uri_from_config},
     handlers::{get_elevation, get_status, post_elevations},
     tileset::{TileSetOptions, TileSetWithCache},
 };
@@ -32,12 +33,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     env_logger::init();
 
     debug!("Cache Size: {}", config.cache_size);
-    debug!("Tile Folder: {:?}", config.tile_folder);
+    debug!("Tile Set Path: {:?}", config.tile_set_path);
     debug!("Max Post Size: {}", config.max_post_size);
     debug!("Port: {}", config.port);
+    debug!("S3 Endpoint: {:?}", config.s3_endpoint);
+    debug!("S3 Bucket: {:?}", config.s3_bucket);
+
+    let path = get_uri_from_config(config.clone());
 
     let options = TileSetOptions {
-        path: config.tile_folder.clone(),
+        path: path,
         cache_size: config.cache_size,
         gzip: true,
     };

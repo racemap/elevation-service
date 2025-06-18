@@ -45,7 +45,7 @@ jobs:
           docker run \
           --rm \
           -d \
-          -eTILE_SET_PATH=s3:// \
+          -eTILE_SET_PATH=s3://elevation-tiles-prod/skadi \
           -p3000:3000 \
           --name elevation \
           "racemap/elevation-service:${{ steps.meta.outputs.version }}"

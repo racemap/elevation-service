@@ -1,14 +1,15 @@
 use crate::tileset::{TileSetOptions, TileSetWithCache};
 use flate2::read::GzDecoder;
+use log::debug;
 use reqwest::Client;
 use std::io::Read;
 
-pub struct S3TileSet {
+pub struct HTTPTileSet {
     base_url: String,
     options: TileSetOptions,
 }
 
-impl S3TileSet {
+impl HTTPTileSet {
     pub fn new(base_url: String, options: TileSetOptions) -> Self {
         Self { base_url, options }
     }
@@ -21,8 +22,9 @@ impl S3TileSet {
         let file_path = format!(
             "{}/{}",
             self.base_url,
-            TileSetWithCache::get_file_path(lat, lng).expect("Failed to get tile path")
+            TileSetWithCache::get_file_path(lat, lng)?
         );
+        debug!("Fetching tile from: {}", file_path);
         let response = Client::new().get(&file_path).send().await?.bytes().await?;
         // Handle gzip decompression if needed
         if self.options.gzip {
