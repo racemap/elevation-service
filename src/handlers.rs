@@ -1,7 +1,7 @@
 use futures::stream::StreamExt;
 use rand;
 use std::sync::Arc;
-use warp::{Rejection, Reply, reply};
+use warp::{Rejection, Reply, filters::path::FullPath, reply};
 
 use crate::{
     config::Config,
@@ -89,4 +89,8 @@ pub async fn post_elevations(
     }
 
     Ok(reply::json(&ElevationResponse { elevations }).into_response())
+}
+
+pub async fn handle_options(_: FullPath) -> Result<impl warp::Reply, warp::Rejection> {
+    Ok(warp::reply::with_status("", warp::http::StatusCode::OK))
 }

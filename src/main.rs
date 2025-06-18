@@ -1,6 +1,6 @@
 use crate::{
     config::get_uri_from_config,
-    handlers::{get_elevation, get_status, post_elevations},
+    handlers::{get_elevation, get_status, handle_options, post_elevations},
     tileset::{TileSetOptions, TileSetWithCache},
     types::{LatLng, LatLngs},
 };
@@ -72,12 +72,26 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and(config_filter.clone())
         .and_then(post_elevations);
 
-    // Combine routes
-    let routes = warp::any().and(
-        status_route
-            .or(get_elevation_route)
-            .or(post_elevation_route),
-    );
+    // Define OPTIONS route to handle CORS preflight requests
+    let options_route = warp::options()
+        .and(warp::path::full())
+        .and_then(handle_options);
+
+    // Create CORS configuration
+    let cors = warp::cors()
+        .allow_any_origin()
+        .allow_headers(vec!["Content-Type", "Authorization"])
+        .allow_methods(vec!["GET", "POST", "OPTIONS"]);
+
+    // Combine routes and apply CORS
+    let routes = warp::any()
+        .and(
+            status_route
+                .or(get_elevation_route)
+                .or(post_elevation_route)
+                .or(options_route),
+        )
+        .with(cors);
 
     // Start the server
     warp::serve(routes).run((bind, port)).await;
