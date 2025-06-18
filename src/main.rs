@@ -82,7 +82,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Start the server
-    warp::serve(routes).run(([127, 0, 0, 1], config.port)).await;
+    warp::serve(routes).run((config.bind, config.port)).await;
 
     Ok(())
 }

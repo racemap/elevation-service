@@ -3,7 +3,7 @@
 use byte_unit::Byte;
 use dotenvy::dotenv;
 use once_cell::sync::Lazy;
-use std::env;
+use std::{env, net::Ipv4Addr};
 
 // Define the Config struct
 #[derive(Clone, Debug)]
@@ -12,6 +12,7 @@ pub struct Config {
     pub tile_set_path: String,
     pub max_post_size: Byte,
     pub port: u16,
+    pub bind: Ipv4Addr,
     pub s3_endpoint: Option<String>,
     pub s3_bucket: Option<String>,
 }
@@ -43,6 +44,10 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
             .ok()
             .and_then(|s| s.parse::<u16>().ok())
             .unwrap_or(3000),
+        bind: env::var("BIND")
+            .ok()
+            .and_then(|s| s.parse::<Ipv4Addr>().ok())
+            .unwrap_or(Ipv4Addr::new(0, 0, 0, 0)), // Default to
         s3_endpoint: env::var("S3_ENDPOINT").ok(),
         s3_bucket: env::var("S3_BUCKET").ok(),
     }
