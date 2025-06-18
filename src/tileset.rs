@@ -1,10 +1,7 @@
 use crate::tileset::file_tileset::FileTileSet;
 use crate::tileset::hgt::HGT;
 use crate::tileset::http_tileset::HTTPTileSet;
-use std::collections::{HashMap, VecDeque};
-use std::time::Duration;
-use tokio::sync::{Mutex, oneshot};
-use tokio::time::timeout;
+use moka::future::Cache;
 
 mod file_tileset;
 mod hgt;
@@ -48,114 +45,15 @@ impl TileSet {
     }
 }
 
-pub struct TileSetCache {
-    cache: Mutex<HashMap<(i32, i32), Vec<u8>>>,
-    order: Mutex<VecDeque<(i32, i32)>>, // Tracks the order of keys for LRU eviction
-    max_size: usize,                    // Maximum number of tiles in the cache
-    pending_fetches: Mutex<HashMap<(i32, i32), Vec<oneshot::Sender<Vec<u8>>>>>, // Track in-progress fetches
-    fetch_timeout: Duration, // Maximum time to wait for a pending fetch
-}
-
-impl TileSetCache {
-    pub fn new(max_size: usize) -> Self {
-        Self {
-            cache: Mutex::new(HashMap::new()),
-            order: Mutex::new(VecDeque::new()),
-            max_size,
-            pending_fetches: Mutex::new(HashMap::new()),
-            fetch_timeout: Duration::from_secs(30), // Default 30 seconds timeout
-        }
-    }
-
-    // Try to lock a key for fetching, returns true if lock acquired, false if already locked
-    pub async fn lock_key(&self, key: &(i32, i32)) -> Option<oneshot::Receiver<Vec<u8>>> {
-        let mut pending = self.pending_fetches.lock().await;
-
-        // If this key is already being fetched, register for notification when it completes
-        if pending.contains_key(key) {
-            let (sender, receiver) = oneshot::channel();
-            pending.get_mut(key).unwrap().push(sender);
-            return Some(receiver);
-        }
-
-        // No one is fetching this key yet, so we'll create a new entry with empty waiters
-        pending.insert(key.clone(), Vec::new());
-        None
-    }
-
-    // Unlock a key and notify all waiters with the result
-    pub async fn unlock_key(&self, key: &(i32, i32), value: Vec<u8>) {
-        let mut pending = self.pending_fetches.lock().await;
-
-        if let Some(waiters) = pending.remove(key) {
-            // Notify all waiters with the result
-            for sender in waiters {
-                let _ = sender.send(value.clone());
-            }
-        }
-    }
-
-    pub async fn get(&self, key: &(i32, i32)) -> Option<Vec<u8>> {
-        // First check if the value is in the cache
-        let cache = self.cache.lock().await;
-        if let Some(value) = cache.get(key).cloned() {
-            let mut order = self.order.lock().await;
-            if let Some(pos) = order.iter().position(|&k| k == *key) {
-                // Move the accessed key to the back (most recently used)
-                let key = order.remove(pos).unwrap();
-                order.push_back(key);
-            }
-            return Some(value);
-        }
-        drop(cache); // Release the cache lock
-
-        // If the key is being fetched by another task, wait for it to complete
-        if let Some(receiver) = self.lock_key(key).await {
-            // Another task is already fetching this key, wait for the result with a timeout
-            match timeout(self.fetch_timeout, receiver).await {
-                Ok(Ok(value)) => return Some(value),
-                Ok(Err(_)) => return None, // The fetching task failed
-                Err(_) => {
-                    // Timeout occurred waiting for the fetch to complete
-                    // We'll continue and let the caller handle the cache miss
-                    return None;
-                }
-            }
-        }
-
-        // We've acquired the lock but the data isn't in the cache yet
-        None
-    }
-
-    pub async fn insert(&self, key: (i32, i32), value: Vec<u8>) {
-        let mut cache = self.cache.lock().await;
-        let mut order = self.order.lock().await;
-
-        if cache.len() >= self.max_size {
-            // Evict the least recently used item
-            if let Some(lru_key) = order.pop_front() {
-                cache.remove(&lru_key);
-            }
-        }
-
-        // Insert the new item and mark it as most recently used
-        cache.insert(key, value.clone());
-        order.push_back(key);
-
-        // Notify any waiters and release the lock
-        self.unlock_key(&key, value).await;
-    }
-}
-
 pub struct TileSetWithCache {
     tileset: TileSet,
-    cache: TileSetCache,
+    cache: Cache<(i32, i32), Vec<u8>>,
 }
 
 impl TileSetWithCache {
     pub fn new(options: TileSetOptions) -> Result<Self, Box<dyn std::error::Error>> {
         let tileset = TileSet::new(options.clone())?;
-        let cache = TileSetCache::new(options.cache_size as usize);
+        let cache = Cache::new(options.cache_size);
         Ok(Self { tileset, cache })
     }
 
@@ -188,20 +86,26 @@ impl TileSetWithCache {
         let lng_floor = lng.floor();
         let cache_key = (lat_floor as i32, lng_floor as i32);
 
-        let tile_data = if let Some(data) = self.cache.get(&cache_key).await {
-            data.clone()
-        } else {
-            // Fetch the tile data (this would be async in a real implementation)
-            let tile_data = match &self.tileset {
-                TileSet::File(file_tileset) => file_tileset.get_tile(lat_floor, lng_floor).await?,
-                TileSet::HTTP(s3_tileset) => s3_tileset.get_tile(lat_floor, lng_floor).await?,
-            };
-            self.cache.insert(cache_key, tile_data.clone()).await;
-            tile_data
-        };
+        let tile_data = self
+            .cache
+            .get_with(cache_key, self.get_tile_data(lat_floor, lng_floor))
+            .await;
 
         let hgt = HGT::new(tile_data, (lat_floor, lng_floor))?;
         hgt.get_elevation(lat, lng).map_err(|e| e.into())
+    }
+
+    async fn get_tile_data(&self, lat_floor: f64, lng_floor: f64) -> Vec<u8> {
+        match &self.tileset {
+            TileSet::File(file_tileset) => file_tileset
+                .get_tile(lat_floor, lng_floor)
+                .await
+                .expect("Failed to get tile data"),
+            TileSet::HTTP(s3_tileset) => s3_tileset
+                .get_tile(lat_floor, lng_floor)
+                .await
+                .expect("Failed to get tile data"),
+        }
     }
 }
 
