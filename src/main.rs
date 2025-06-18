@@ -1,28 +1,18 @@
 use crate::{
-    config::{Config, get_uri_from_config},
+    config::get_uri_from_config,
     handlers::{get_elevation, get_status, post_elevations},
     tileset::{TileSetOptions, TileSetWithCache},
+    types::{ElevationResponse, LatLng, LatLngs},
 };
 use env_logger;
 use log::debug;
-use serde::{Deserialize, Serialize};
 use std::sync::Arc;
 use warp::Filter;
 
 mod config;
 mod handlers;
 mod tileset;
-
-#[derive(Deserialize)]
-pub struct LatLng {
-    lat: f64,
-    lng: f64,
-}
-
-#[derive(Serialize)]
-struct ElevationResponse {
-    elevations: Vec<f64>,
-}
+mod types;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
@@ -67,7 +57,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Define the POST route for elevations
     let post_elevation_route = warp::path::end()
         .and(warp::post())
-        .and(warp::body::json())
+        .and(warp::body::json::<LatLngs>())
         .and(warp::body::content_length_limit(
             config.max_post_size.as_u64(),
         ))

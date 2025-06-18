@@ -2,7 +2,10 @@ use rand;
 use std::sync::Arc;
 use warp::{Rejection, Reply, reply};
 
-use crate::{ElevationResponse, LatLng, tileset::TileSetWithCache};
+use crate::{
+    tileset::TileSetWithCache,
+    types::{ElevationResponse, LatLng, LatLngs},
+};
 
 pub async fn get_status(tileset: Arc<TileSetWithCache>) -> Result<impl Reply, Rejection> {
     let random_lat = rand::random::<f64>() * 180.0 - 90.0;
@@ -28,16 +31,21 @@ pub async fn get_elevation(
         .into_response());
     }
 
-    let elevation = tileset
-        .get_elevation(query.lat, query.lng)
-        .await
-        .expect("Failed to get elevation");
+    let elevation = match tileset.get_elevation(query.lat, query.lng).await {
+        Ok(elevation) => elevation,
+        Err(_) => {
+            return Ok(
+                reply::with_status("Error", warp::http::StatusCode::INTERNAL_SERVER_ERROR)
+                    .into_response(),
+            );
+        }
+    };
 
     Ok(reply::json(&elevation).into_response())
 }
 
 pub async fn post_elevations(
-    locations: Vec<(f64, f64)>,
+    locations: LatLngs,
     tileset: Arc<TileSetWithCache>,
 ) -> Result<impl Reply, Rejection> {
     let mut elevations = Vec::new();
