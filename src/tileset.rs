@@ -2,7 +2,7 @@ use crate::tileset::file_tileset::FileTileSet;
 use crate::tileset::hgt::HGT;
 use crate::tileset::http_tileset::HTTPTileSet;
 use std::collections::{HashMap, VecDeque};
-use tokio::sync::Mutex;
+use tokio::sync::{Mutex, oneshot};
 
 mod file_tileset;
 mod hgt;
@@ -50,6 +50,7 @@ pub struct TileSetCache {
     cache: Mutex<HashMap<(i32, i32), Vec<u8>>>,
     order: Mutex<VecDeque<(i32, i32)>>, // Tracks the order of keys for LRU eviction
     max_size: usize,                    // Maximum number of tiles in the cache
+    pending_fetches: Mutex<HashMap<(i32, i32), Vec<oneshot::Sender<Vec<u8>>>>>, // Track in-progress fetches
 }
 
 impl TileSetCache {
@@ -58,10 +59,40 @@ impl TileSetCache {
             cache: Mutex::new(HashMap::new()),
             order: Mutex::new(VecDeque::new()),
             max_size,
+            pending_fetches: Mutex::new(HashMap::new()),
+        }
+    }
+
+    // Try to lock a key for fetching, returns true if lock acquired, false if already locked
+    pub async fn lock_key(&self, key: &(i32, i32)) -> Option<oneshot::Receiver<Vec<u8>>> {
+        let mut pending = self.pending_fetches.lock().await;
+
+        // If this key is already being fetched, register for notification when it completes
+        if pending.contains_key(key) {
+            let (sender, receiver) = oneshot::channel();
+            pending.get_mut(key).unwrap().push(sender);
+            return Some(receiver);
+        }
+
+        // No one is fetching this key yet, so we'll create a new entry with empty waiters
+        pending.insert(key.clone(), Vec::new());
+        None
+    }
+
+    // Unlock a key and notify all waiters with the result
+    pub async fn unlock_key(&self, key: &(i32, i32), value: Vec<u8>) {
+        let mut pending = self.pending_fetches.lock().await;
+
+        if let Some(waiters) = pending.remove(key) {
+            // Notify all waiters with the result
+            for sender in waiters {
+                let _ = sender.send(value.clone());
+            }
         }
     }
 
     pub async fn get(&self, key: &(i32, i32)) -> Option<Vec<u8>> {
+        // First check if the value is in the cache
         let cache = self.cache.lock().await;
         if let Some(value) = cache.get(key).cloned() {
             let mut order = self.order.lock().await;
@@ -70,10 +101,21 @@ impl TileSetCache {
                 let key = order.remove(pos).unwrap();
                 order.push_back(key);
             }
-            Some(value)
-        } else {
-            None
+            return Some(value);
         }
+        drop(cache); // Release the cache lock
+
+        // If the key is being fetched by another task, wait for it to complete
+        if let Some(receiver) = self.lock_key(key).await {
+            // Another task is already fetching this key, wait for the result
+            match receiver.await {
+                Ok(value) => return Some(value),
+                Err(_) => return None, // The fetching task failed
+            }
+        }
+
+        // We've acquired the lock but the data isn't in the cache yet
+        None
     }
 
     pub async fn insert(&self, key: (i32, i32), value: Vec<u8>) {
@@ -88,8 +130,11 @@ impl TileSetCache {
         }
 
         // Insert the new item and mark it as most recently used
-        cache.insert(key, value);
+        cache.insert(key, value.clone());
         order.push_back(key);
+
+        // Notify any waiters and release the lock
+        self.unlock_key(&key, value).await;
     }
 }
 
