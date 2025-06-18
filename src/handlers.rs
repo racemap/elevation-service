@@ -1,6 +1,9 @@
 use futures::stream::StreamExt;
 use rand;
-use std::sync::Arc;
+use std::{
+    io::{Error, ErrorKind},
+    sync::Arc,
+};
 use warp::{Rejection, Reply, filters::path::FullPath, reply};
 
 use crate::{
@@ -25,14 +28,6 @@ pub async fn get_elevation(
     query: LatLng,
     tileset: Arc<TileSetWithCache>,
 ) -> Result<impl Reply, Rejection> {
-    if query.lat < -90.0 || query.lat > 90.0 || query.lng < -180.0 || query.lng > 180.0 {
-        return Ok(reply::with_status(
-            "Invalid Latitude or Longitude",
-            warp::http::StatusCode::BAD_REQUEST,
-        )
-        .into_response());
-    }
-
     let elevation = match tileset.get_elevation(query.lat, query.lng).await {
         Ok(elevation) => elevation,
         Err(_) => {
@@ -57,14 +52,10 @@ pub async fn post_elevations(
         let tileset = tileset.clone();
 
         async move {
-            if lat < -90.0 || lat > 90.0 || lng < -180.0 || lng > 180.0 {
-                return Err("Invalid Latitude or Longitude".to_string());
-            }
             tileset
                 .get_elevation(lat, lng)
                 .await
                 .map(|elevation| elevation)
-                .map_err(|_| "Error fetching elevation".to_string())
         }
     });
 
@@ -77,13 +68,16 @@ pub async fn post_elevations(
     for result in results {
         match result {
             Ok(elevation) => elevations.push(elevation),
-            Err(err_message) => {
-                let status = if err_message == "Invalid Latitude or Longitude" {
-                    warp::http::StatusCode::BAD_REQUEST
-                } else {
-                    warp::http::StatusCode::INTERNAL_SERVER_ERROR
+            Err(e) => {
+                let status = match e.kind() {
+                    ErrorKind::NotFound => warp::http::StatusCode::NOT_FOUND,
+                    ErrorKind::InvalidInput => warp::http::StatusCode::BAD_REQUEST,
+                    _ => {
+                        log::error!("Error fetching elevation: {}", e);
+                        warp::http::StatusCode::INTERNAL_SERVER_ERROR
+                    }
                 };
-                return Ok(reply::with_status(err_message, status).into_response());
+                return Ok(reply::with_status(e.to_string(), status).into_response());
             }
         }
     }

@@ -58,14 +58,6 @@ impl TileSetWithCache {
     }
 
     pub fn get_file_path(lat: f64, lng: f64) -> Result<String, std::io::Error> {
-        if lat < -90.0 || lat > 90.0 || lng < -180.0 || lng > 180.0 {
-            return Err(std::io::Error::new(
-                std::io::ErrorKind::InvalidInput,
-                "Latitude must be between -90 and 90, and longitude must be between -180 and 180.",
-            )
-            .into());
-        }
-
         let lat_prefix = if lat < 0.0 { "S" } else { "N" };
         let lng_prefix = if lng < 0.0 { "W" } else { "E" };
         let lat_file_name = format!("{}{:02}", lat_prefix, lat.abs() as i32);
@@ -76,11 +68,9 @@ impl TileSetWithCache {
         ))
     }
 
-    pub async fn get_elevation(
-        &self,
-        lat: f64,
-        lng: f64,
-    ) -> Result<i16, Box<dyn std::error::Error>> {
+    pub async fn get_elevation(&self, lat: f64, lng: f64) -> Result<i16, tokio::io::Error> {
+        TileSetWithCache::validate_coordinates(lat, lng)?;
+
         // Simulate fetching the tile (this would be implemented in FileTileSet or S3TileSet)
         let lat_floor = lat.floor();
         let lng_floor = lng.floor();
@@ -88,23 +78,43 @@ impl TileSetWithCache {
 
         let tile_data = self
             .cache
-            .get_with(cache_key, self.get_tile_data(lat_floor, lng_floor))
-            .await;
+            .try_get_with(cache_key, self.get_tile_data(lat_floor, lng_floor))
+            .await
+            .map_err(|e| tokio::io::Error::new(tokio::io::ErrorKind::Other, e))?;
 
         let hgt = HGT::new(tile_data, (lat_floor, lng_floor))?;
         hgt.get_elevation(lat, lng).map_err(|e| e.into())
     }
 
-    async fn get_tile_data(&self, lat_floor: f64, lng_floor: f64) -> Vec<u8> {
-        match &self.tileset {
-            TileSet::File(file_tileset) => file_tileset
-                .get_tile(lat_floor, lng_floor)
-                .await
-                .expect("Failed to get tile data"),
-            TileSet::HTTP(s3_tileset) => s3_tileset
-                .get_tile(lat_floor, lng_floor)
-                .await
-                .expect("Failed to get tile data"),
+    fn validate_coordinates(lat: f64, lng: f64) -> Result<(), std::io::Error> {
+        if lat < -90.0 || lat > 90.0 || lng < -180.0 || lng > 180.0 {
+            return Err(std::io::Error::new(
+                std::io::ErrorKind::InvalidInput,
+                "Latitude must be between -90 and 90, and longitude must be between -180 and 180.",
+            ));
+        }
+        Ok(())
+    }
+
+    async fn get_tile_data(
+        &self,
+        lat_floor: f64,
+        lng_floor: f64,
+    ) -> Result<Vec<u8>, tokio::io::Error> {
+        let tileset = match &self.tileset {
+            TileSet::File(file_tileset) => file_tileset.get_tile(lat_floor, lng_floor).await,
+            TileSet::HTTP(s3_tileset) => s3_tileset.get_tile(lat_floor, lng_floor).await,
+        };
+
+        match tileset {
+            Ok(data) => Ok(data),
+            Err(e) => Err(tokio::io::Error::new(
+                tokio::io::ErrorKind::NotFound,
+                format!(
+                    "Tile not found for coordinates ({}, {}): {}",
+                    lat_floor, lng_floor, e
+                ),
+            )),
         }
     }
 }
@@ -128,6 +138,20 @@ mod tests {
         assert!(elevation.is_ok());
         let elevation_value = elevation.unwrap();
         assert_eq!(elevation_value, 48);
+    }
+
+    #[tokio::test]
+    async fn test_get_elevation_invalid_coordinates() {
+        let options = TileSetOptions {
+            path: String::from("test_files"),
+            cache_size: 128,
+            gzip: true,
+        };
+        let tileset = TileSetWithCache::new(options).unwrap();
+        let elevation = tileset.get_elevation(100.0, 200.0).await;
+        assert!(elevation.is_err());
+        let error = elevation.unwrap_err();
+        assert_eq!(error.kind(), ErrorKind::InvalidInput);
     }
 
     #[test]
@@ -178,15 +202,6 @@ mod tests {
         let file_path = TileSetWithCache::get_file_path(lat, lng);
         assert!(file_path.is_ok());
         assert_eq!(file_path.unwrap(), expected_path);
-    }
-
-    #[test]
-    fn test_get_file_out_of_bounds() {
-        let lat = 91.0; // Invalid latitude
-        let lng = 181.0; // Invalid longitude
-        let file_path = TileSetWithCache::get_file_path(lat, lng);
-        assert!(file_path.is_err());
-        assert_eq!(file_path.unwrap_err().kind(), ErrorKind::InvalidInput);
     }
 
     #[test]
