@@ -1,3 +1,4 @@
+use futures::future::join_all;
 use rand;
 use std::sync::Arc;
 use warp::{Rejection, Reply, reply};
@@ -48,25 +49,39 @@ pub async fn post_elevations(
     locations: LatLngs,
     tileset: Arc<TileSetWithCache>,
 ) -> Result<impl Reply, Rejection> {
-    let mut elevations = Vec::new();
-    for loc in locations {
-        if loc.0 < -90.0 || loc.0 > 90.0 || loc.1 < -180.0 || loc.1 > 180.0 {
-            return Ok(reply::with_status(
-                "Invalid Latitude or Longitude",
-                warp::http::StatusCode::BAD_REQUEST,
-            )
-            .into_response());
-        }
-        match tileset.get_elevation(loc.0, loc.1).await {
-            Ok(elevation) => elevations.push(elevation as f64),
-            Err(_) => {
-                return Ok(reply::with_status(
-                    "Error",
-                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+    let elevation_futures = locations.into_iter().map(|loc| {
+        let lat = loc.0;
+        let lng = loc.1;
+        let tileset = tileset.clone();
+
+        async move {
+            if lat < -90.0 || lat > 90.0 || lng < -180.0 || lng > 180.0 {
+                return Err(reply::with_status(
+                    "Invalid Latitude or Longitude",
+                    warp::http::StatusCode::BAD_REQUEST,
                 )
                 .into_response());
             }
+            match tileset.get_elevation(lat, lng).await {
+                Ok(elevation) => Ok(elevation as f64),
+                Err(_) => Err(reply::with_status(
+                    "Error",
+                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
+                )
+                .into_response()),
+            }
+        }
+    });
+
+    let results = join_all(elevation_futures).await;
+
+    let mut elevations = Vec::new();
+    for result in results {
+        match result {
+            Ok(elevation) => elevations.push(elevation),
+            Err(err_response) => return Ok(err_response),
         }
     }
+
     Ok(reply::json(&ElevationResponse { elevations }).into_response())
 }
