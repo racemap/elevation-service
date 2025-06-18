@@ -61,7 +61,12 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and(warp::get())
         .and(warp::query::<LatLng>())
         .and(tileset_filter.clone())
-        .and_then(get_elevation);
+        .and_then(get_elevation)
+        .or(warp::path("api")
+            .and(warp::get())
+            .and(warp::query::<LatLng>())
+            .and(tileset_filter.clone())
+            .and_then(get_elevation));
 
     // Define the POST route for elevations
     let post_elevation_route = warp::path::end()
@@ -70,7 +75,14 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and(warp::body::content_length_limit(max_post_size.as_u64()))
         .and(tileset_filter.clone())
         .and(config_filter.clone())
-        .and_then(post_elevations);
+        .and_then(post_elevations)
+        .or(warp::path("api")
+            .and(warp::post())
+            .and(warp::body::json::<LatLngs>())
+            .and(warp::body::content_length_limit(max_post_size.as_u64()))
+            .and(tileset_filter.clone())
+            .and(config_filter.clone())
+            .and_then(post_elevations));
 
     // Define OPTIONS route to handle CORS preflight requests
     let options_route = warp::options()
