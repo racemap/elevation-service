@@ -30,11 +30,8 @@ pub async fn get_elevation(
 ) -> Result<impl Reply, Rejection> {
     let elevation = match tileset.get_elevation(query.lat, query.lng).await {
         Ok(elevation) => elevation,
-        Err(_) => {
-            return Ok(
-                reply::with_status("Error", warp::http::StatusCode::INTERNAL_SERVER_ERROR)
-                    .into_response(),
-            );
+        Err(e) => {
+            return Ok(convert_io_error_to_warp_replay(e).into_response());
         }
     };
 
@@ -69,15 +66,7 @@ pub async fn post_elevations(
         match result {
             Ok(elevation) => elevations.push(elevation),
             Err(e) => {
-                let status = match e.kind() {
-                    ErrorKind::NotFound => warp::http::StatusCode::NOT_FOUND,
-                    ErrorKind::InvalidInput => warp::http::StatusCode::BAD_REQUEST,
-                    _ => {
-                        log::error!("Error fetching elevation: {}", e);
-                        warp::http::StatusCode::INTERNAL_SERVER_ERROR
-                    }
-                };
-                return Ok(reply::with_status(e.to_string(), status).into_response());
+                return Ok(convert_io_error_to_warp_replay(e).into_response());
             }
         }
     }
@@ -87,4 +76,16 @@ pub async fn post_elevations(
 
 pub async fn handle_options(_: FullPath) -> Result<impl warp::Reply, warp::Rejection> {
     Ok(warp::reply::with_status("", warp::http::StatusCode::OK))
+}
+
+fn convert_io_error_to_warp_replay(err: Error) -> impl Reply {
+    let status = match err.kind() {
+        ErrorKind::NotFound => warp::http::StatusCode::NOT_FOUND,
+        ErrorKind::InvalidInput => warp::http::StatusCode::BAD_REQUEST,
+        _ => {
+            log::error!("Error fetching elevation: {}", err);
+            warp::http::StatusCode::INTERNAL_SERVER_ERROR
+        }
+    };
+    return reply::with_status(err.to_string(), status).into_response();
 }
