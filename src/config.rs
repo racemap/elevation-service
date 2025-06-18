@@ -11,6 +11,7 @@ pub struct Config {
     pub cache_size: u64,
     pub tile_set_path: String,
     pub max_post_size: Byte,
+    pub max_parallel_processing: usize,
     pub port: u16,
     pub bind: Ipv4Addr,
     pub s3_endpoint: Option<String>,
@@ -40,6 +41,10 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
             .unwrap_or_else(|| {
                 Byte::parse_str("500kb", true).unwrap() // Default to 10 MB
             }),
+        max_parallel_processing: env::var("MAX_PARALLEL_PROCESSING")
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(500), // Default to 10
         port: env::var("PORT")
             .ok()
             .and_then(|s| s.parse::<u16>().ok())

@@ -2,7 +2,7 @@ use crate::{
     config::get_uri_from_config,
     handlers::{get_elevation, get_status, post_elevations},
     tileset::{TileSetOptions, TileSetWithCache},
-    types::{ElevationResponse, LatLng, LatLngs},
+    types::{LatLng, LatLngs},
 };
 use env_logger;
 use log::debug;
@@ -18,14 +18,22 @@ mod types;
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Access the configuration values
     let config = config::CONFIG.clone();
+    let port = config.port;
+    let bind = config.bind;
+    let max_post_size = config.max_post_size;
 
     // Initialize the logger
     env_logger::init();
 
     debug!("Cache Size: {}", config.cache_size);
     debug!("Tile Set Path: {:?}", config.tile_set_path);
-    debug!("Max Post Size: {}", config.max_post_size);
-    debug!("Port: {}", config.port);
+    debug!("Max Post Size: {}", max_post_size);
+    debug!("Port: {}", port);
+    debug!("Bind Address: {:?}", bind);
+    debug!(
+        "Max Parallel Processing: {}",
+        config.max_parallel_processing
+    );
     debug!("S3 Endpoint: {:?}", config.s3_endpoint);
     debug!("S3 Bucket: {:?}", config.s3_bucket);
 
@@ -40,6 +48,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
 
     // Create a shared filter for tileset
     let tileset_filter = warp::any().map(move || tileset.clone());
+    let config_filter = warp::any().map(move || config.clone());
 
     // Define the /status route
     let status_route = warp::path("status")
@@ -58,10 +67,9 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     let post_elevation_route = warp::path::end()
         .and(warp::post())
         .and(warp::body::json::<LatLngs>())
-        .and(warp::body::content_length_limit(
-            config.max_post_size.as_u64(),
-        ))
+        .and(warp::body::content_length_limit(max_post_size.as_u64()))
         .and(tileset_filter.clone())
+        .and(config_filter.clone())
         .and_then(post_elevations);
 
     // Combine routes
@@ -72,7 +80,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     );
 
     // Start the server
-    warp::serve(routes).run((config.bind, config.port)).await;
+    warp::serve(routes).run((bind, port)).await;
 
     Ok(())
 }

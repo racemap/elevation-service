@@ -1,9 +1,10 @@
-use futures::future::join_all;
+use futures::stream::StreamExt;
 use rand;
 use std::sync::Arc;
 use warp::{Rejection, Reply, reply};
 
 use crate::{
+    config::Config,
     tileset::TileSetWithCache,
     types::{ElevationResponse, LatLng, LatLngs},
 };
@@ -48,6 +49,7 @@ pub async fn get_elevation(
 pub async fn post_elevations(
     locations: LatLngs,
     tileset: Arc<TileSetWithCache>,
+    config: Config,
 ) -> Result<impl Reply, Rejection> {
     let elevation_futures = locations.into_iter().map(|loc| {
         let lat = loc.0;
@@ -56,30 +58,33 @@ pub async fn post_elevations(
 
         async move {
             if lat < -90.0 || lat > 90.0 || lng < -180.0 || lng > 180.0 {
-                return Err(reply::with_status(
-                    "Invalid Latitude or Longitude",
-                    warp::http::StatusCode::BAD_REQUEST,
-                )
-                .into_response());
+                return Err("Invalid Latitude or Longitude".to_string());
             }
-            match tileset.get_elevation(lat, lng).await {
-                Ok(elevation) => Ok(elevation as f64),
-                Err(_) => Err(reply::with_status(
-                    "Error",
-                    warp::http::StatusCode::INTERNAL_SERVER_ERROR,
-                )
-                .into_response()),
-            }
+            tileset
+                .get_elevation(lat, lng)
+                .await
+                .map(|elevation| elevation as f64)
+                .map_err(|_| "Error fetching elevation".to_string())
         }
     });
 
-    let results = join_all(elevation_futures).await;
+    let results = futures::stream::iter(elevation_futures)
+        .buffer_unordered(config.max_parallel_processing)
+        .collect::<Vec<_>>()
+        .await;
 
     let mut elevations = Vec::new();
     for result in results {
         match result {
             Ok(elevation) => elevations.push(elevation),
-            Err(err_response) => return Ok(err_response),
+            Err(err_message) => {
+                let status = if err_message == "Invalid Latitude or Longitude" {
+                    warp::http::StatusCode::BAD_REQUEST
+                } else {
+                    warp::http::StatusCode::INTERNAL_SERVER_ERROR
+                };
+                return Ok(reply::with_status(err_message, status).into_response());
+            }
         }
     }
 
