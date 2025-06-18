@@ -2,7 +2,9 @@ use crate::tileset::file_tileset::FileTileSet;
 use crate::tileset::hgt::HGT;
 use crate::tileset::http_tileset::HTTPTileSet;
 use std::collections::{HashMap, VecDeque};
+use std::time::Duration;
 use tokio::sync::{Mutex, oneshot};
+use tokio::time::timeout;
 
 mod file_tileset;
 mod hgt;
@@ -51,6 +53,7 @@ pub struct TileSetCache {
     order: Mutex<VecDeque<(i32, i32)>>, // Tracks the order of keys for LRU eviction
     max_size: usize,                    // Maximum number of tiles in the cache
     pending_fetches: Mutex<HashMap<(i32, i32), Vec<oneshot::Sender<Vec<u8>>>>>, // Track in-progress fetches
+    fetch_timeout: Duration, // Maximum time to wait for a pending fetch
 }
 
 impl TileSetCache {
@@ -60,6 +63,7 @@ impl TileSetCache {
             order: Mutex::new(VecDeque::new()),
             max_size,
             pending_fetches: Mutex::new(HashMap::new()),
+            fetch_timeout: Duration::from_secs(30), // Default 30 seconds timeout
         }
     }
 
@@ -107,10 +111,15 @@ impl TileSetCache {
 
         // If the key is being fetched by another task, wait for it to complete
         if let Some(receiver) = self.lock_key(key).await {
-            // Another task is already fetching this key, wait for the result
-            match receiver.await {
-                Ok(value) => return Some(value),
-                Err(_) => return None, // The fetching task failed
+            // Another task is already fetching this key, wait for the result with a timeout
+            match timeout(self.fetch_timeout, receiver).await {
+                Ok(Ok(value)) => return Some(value),
+                Ok(Err(_)) => return None, // The fetching task failed
+                Err(_) => {
+                    // Timeout occurred waiting for the fetch to complete
+                    // We'll continue and let the caller handle the cache miss
+                    return None;
+                }
             }
         }
 
@@ -146,7 +155,7 @@ pub struct TileSetWithCache {
 impl TileSetWithCache {
     pub fn new(options: TileSetOptions) -> Result<Self, Box<dyn std::error::Error>> {
         let tileset = TileSet::new(options.clone())?;
-        let cache = TileSetCache::new(options.cache_size as usize); // Use cache_size as limit
+        let cache = TileSetCache::new(options.cache_size as usize);
         Ok(Self { tileset, cache })
     }
 
