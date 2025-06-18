@@ -45,7 +45,7 @@ jobs:
           docker run \
           --rm \
           -d \
-          -eTILE_SET_PATH=s3:// \
+          -eTILE_SET_PATH=s3://elevation-tiles-prod/skadi \
           -p3000:3000 \
           --name elevation \
           "racemap/elevation-service:${{ steps.meta.outputs.version }}"
@@ -55,7 +55,7 @@ jobs:
             -XPOST \
             -H 'Content-Type: application/json' \
             http://localhost:3000)
-          [ "$RESULT" = "[101,100]" ]
+          [ "$RESULT" = "[101,99]" ]
           RESULT=$(curl http://localhost:3000/\?lat\=51.3\&lng\=13.4)
           [ "$RESULT" = "101" ]
           docker stop elevation
@@ -79,7 +79,7 @@ jobs:
             -XPOST \
             -H 'Content-Type: application/json' \
             http://localhost:3000)
-          [ "$RESULT" = "[101,100]" ]
+          [ "$RESULT" = "[101,99]" ]
           RESULT=$(curl http://localhost:3000/\?lat\=51.3\&lng\=13.4)
           [ "$RESULT" = "101" ]
           docker stop elevation

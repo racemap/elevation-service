@@ -10,6 +10,12 @@ node_modules/
 
 .env
 
+# Local test data
+data
+
+# Added by cargo
+/target
+
 # ACME
 acme
 certs
