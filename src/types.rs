@@ -24,5 +24,5 @@ impl IntoIterator for LatLngs {
 #[derive(Serialize)]
 #[serde(transparent)]
 pub struct ElevationResponse {
-    pub elevations: Vec<f64>,
+    pub elevations: Vec<i16>,
 }

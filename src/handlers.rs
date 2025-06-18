@@ -63,7 +63,7 @@ pub async fn post_elevations(
             tileset
                 .get_elevation(lat, lng)
                 .await
-                .map(|elevation| elevation as f64)
+                .map(|elevation| elevation)
                 .map_err(|_| "Error fetching elevation".to_string())
         }
     });
