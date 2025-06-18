@@ -1,6 +1,6 @@
 services:
   elevation:
-    image: racemap/elevation-service:v1.1.0
+    image: racemap/elevation-service:v2.0.1
     build:
       context: .
       dockerfile: Dockerfile
@@ -18,6 +18,10 @@ services:
       LETSENCRYPT_EMAIL: ${EMAIL}
       TILE_SET_CACHE: ${TILE_SET_CACHE}
       MAX_POST_SIZE: ${MAX_POST_SIZE}
+      MAX_PARALLEL_PROCESSING: ${MAX_PARALLEL_PROCESSING}
+      PORT: 3000
+      BIND: 0.0.0.0
+      RUST_LOG: info
     expose:
       - '3000'
 
