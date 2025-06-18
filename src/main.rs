@@ -91,6 +91,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
                 .or(post_elevation_route)
                 .or(options_route),
         )
+        .with(warp::log("elevation_service"))
         .with(cors);
 
     // Start the server

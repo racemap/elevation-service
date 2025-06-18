@@ -57,7 +57,7 @@ pub async fn post_elevations(
     });
 
     let results = futures::stream::iter(elevation_futures)
-        .buffer_unordered(config.max_parallel_processing)
+        .buffered(config.max_parallel_processing)
         .collect::<Vec<_>>()
         .await;
 
