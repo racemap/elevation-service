@@ -1,11 +1,11 @@
 services:
   elevation:
-    image: racemap/elevation-service:v2.0.4
+    image: racemap/elevation-service:v2.0.5
     build:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
-    cpus: ${CPUS_LIMIT}
+    cpus: "${CPUS_LIMIT}"
     mem_limit: ${MEMORY_LIMIT}
     depends_on:
       - nginx-proxy
