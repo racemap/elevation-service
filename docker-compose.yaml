@@ -1,6 +1,6 @@
 services:
   elevation:
-    image: racemap/elevation-service:v2.0.3
+    image: racemap/elevation-service:v2.0.4
     build:
       context: .
       dockerfile: Dockerfile
