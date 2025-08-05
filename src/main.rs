@@ -71,15 +71,15 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Define the POST route for elevations
     let post_elevation_route = warp::path::end()
         .and(warp::post())
-        .and(warp::body::json::<LatLngs>())
         .and(warp::body::content_length_limit(max_post_size.as_u64()))
+        .and(warp::body::json::<LatLngs>())
         .and(tileset_filter.clone())
         .and(config_filter.clone())
         .and_then(post_elevations)
         .or(warp::path("api")
             .and(warp::post())
-            .and(warp::body::json::<LatLngs>())
             .and(warp::body::content_length_limit(max_post_size.as_u64()))
+            .and(warp::body::json::<LatLngs>())
             .and(tileset_filter.clone())
             .and(config_filter.clone())
             .and_then(post_elevations));
