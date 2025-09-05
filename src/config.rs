@@ -72,8 +72,8 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
 
 pub fn get_uri_from_config(config: Config) -> String {
     let tile_folder = config.tile_set_path;
-    let s3_endpoint = config.s3_endpoint.clone();
-    let s3_bucket = config.s3_bucket.clone();
+    let s3_endpoint = &config.s3_endpoint;
+    let s3_bucket = &config.s3_bucket;
 
     // If S3 credentials are provided, prefer S3 direct access over HTTP
     if config.s3_access_key_id.is_some() && config.s3_secret_access_key.is_some() {

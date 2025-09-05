@@ -5,7 +5,7 @@ use s3::{Bucket, Region, creds::Credentials};
 use std::io::Read;
 
 pub struct S3TileSet {
-    bucket: Bucket,
+    bucket: Box<Bucket>,
     key_prefix: String,
     options: TileSetOptions,
 }
@@ -62,7 +62,7 @@ impl S3TileSet {
         let bucket = Bucket::new(&bucket_name, region, credentials)?;
 
         Ok(Self {
-            bucket: *bucket,
+            bucket,
             key_prefix,
             options,
         })
