@@ -60,7 +60,7 @@ impl TileSet {
             Ok(TileSet::S3(S3TileSet::new(
                 bucket,
                 key_prefix,
-                options.clone(),
+                options.gzip,
                 options.s3_access_key_id,
                 options.s3_secret_access_key,
                 options.s3_region,

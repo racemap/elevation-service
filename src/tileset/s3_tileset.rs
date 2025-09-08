@@ -1,4 +1,4 @@
-use crate::tileset::{TileSetOptions, TileSetWithCache};
+use crate::tileset::TileSetWithCache;
 use flate2::read::GzDecoder;
 use log::debug;
 use s3::{Bucket, Region, creds::Credentials};
@@ -7,14 +7,14 @@ use std::io::Read;
 pub struct S3TileSet {
     bucket: Box<Bucket>,
     key_prefix: String,
-    options: TileSetOptions,
+    gzip: bool,
 }
 
 impl S3TileSet {
     pub fn new(
         bucket_name: String,
         key_prefix: String,
-        options: TileSetOptions,
+        gzip: bool,
         access_key_id: Option<String>,
         secret_access_key: Option<String>,
         region: Option<String>,
@@ -64,7 +64,7 @@ impl S3TileSet {
         Ok(Self {
             bucket,
             key_prefix,
-            options,
+            gzip,
         })
     }
 
@@ -86,7 +86,7 @@ impl S3TileSet {
         let bytes = response.bytes().to_vec();
 
         // Handle gzip decompression if needed
-        if self.options.gzip {
+        if self.gzip {
             let mut decoder = GzDecoder::new(&bytes[..]);
             let mut decompressed = Vec::new();
             decoder.read_to_end(&mut decompressed)?;
