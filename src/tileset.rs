@@ -3,6 +3,7 @@ use crate::tileset::hgt::HGT;
 use crate::tileset::http_tileset::HTTPTileSet;
 use crate::tileset::s3_tileset::S3TileSet;
 use moka::future::Cache;
+use std::sync::Arc;
 
 mod file_tileset;
 mod hgt;
@@ -82,14 +83,14 @@ impl TileSet {
 
 pub struct TileSetWithCache {
     tileset: TileSet,
-    cache: Cache<(i32, i32), Vec<u8>>,
+    hgt_cache: Cache<(i32, i32), Arc<HGT>>, // Cache HGT instances instead of raw tile data
 }
 
 impl TileSetWithCache {
     pub fn new(options: TileSetOptions) -> Result<Self, Box<dyn std::error::Error>> {
         let tileset = TileSet::new(options.clone())?;
-        let cache = Cache::new(options.cache_size);
-        Ok(Self { tileset, cache })
+        let hgt_cache = Cache::new(options.cache_size);
+        Ok(Self { tileset, hgt_cache })
     }
 
     pub fn get_file_path(lat: f64, lng: f64) -> Result<String, std::io::Error> {
@@ -106,19 +107,23 @@ impl TileSetWithCache {
     pub async fn get_elevation(&self, lat: f64, lng: f64) -> Result<i16, tokio::io::Error> {
         TileSetWithCache::validate_coordinates(lat, lng)?;
 
-        // Simulate fetching the tile (this would be implemented in FileTileSet or S3TileSet)
         let lat_floor = lat.floor();
         let lng_floor = lng.floor();
         let cache_key = (lat_floor as i32, lng_floor as i32);
 
-        let tile_data = self
-            .cache
-            .try_get_with(cache_key, self.get_tile_data(lat_floor, lng_floor))
+        // Cache HGT instances instead of raw tile data for better performance
+        let hgt = self
+            .hgt_cache
+            .try_get_with(cache_key, async {
+                // Load tile data and create HGT instance
+                let tile_data = self.get_tile_data(lat_floor, lng_floor).await?;
+                let hgt = HGT::new(tile_data, (lat_floor, lng_floor))?;
+                Ok::<Arc<HGT>, tokio::io::Error>(Arc::new(hgt))
+            })
             .await
             .map_err(|e| tokio::io::Error::new(tokio::io::ErrorKind::Other, e))?;
 
-        let hgt = HGT::new(tile_data, (lat_floor, lng_floor))?;
-        hgt.get_elevation(lat, lng).map_err(|e| e.into())
+        hgt.get_elevation(lat, lng)
     }
 
     fn validate_coordinates(lat: f64, lng: f64) -> Result<(), std::io::Error> {
