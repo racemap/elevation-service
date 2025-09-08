@@ -43,6 +43,10 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         path: path,
         cache_size: config.cache_size,
         gzip: true,
+        s3_access_key_id: config.s3_access_key_id.clone(),
+        s3_secret_access_key: config.s3_secret_access_key.clone(),
+        s3_region: config.s3_region.clone(),
+        s3_endpoint: config.s3_endpoint.clone(),
     };
     let tileset = Arc::new(TileSetWithCache::new(options)?);
 

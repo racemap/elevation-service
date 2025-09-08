@@ -1,17 +1,23 @@
 use crate::tileset::file_tileset::FileTileSet;
 use crate::tileset::hgt::HGT;
 use crate::tileset::http_tileset::HTTPTileSet;
+use crate::tileset::s3_tileset::S3TileSet;
 use moka::future::Cache;
 
 mod file_tileset;
 mod hgt;
 mod http_tileset;
+mod s3_tileset;
 
 #[derive(Debug, Clone)]
 pub struct TileSetOptions {
     pub path: String,
     pub cache_size: u64,
     pub gzip: bool,
+    pub s3_access_key_id: Option<String>,
+    pub s3_secret_access_key: Option<String>,
+    pub s3_region: Option<String>,
+    pub s3_endpoint: Option<String>,
 }
 
 impl Default for TileSetOptions {
@@ -20,6 +26,10 @@ impl Default for TileSetOptions {
             path: String::new(),
             cache_size: 128,
             gzip: true,
+            s3_access_key_id: None,
+            s3_secret_access_key: None,
+            s3_region: None,
+            s3_endpoint: None,
         }
     }
 }
@@ -27,11 +37,36 @@ impl Default for TileSetOptions {
 pub enum TileSet {
     File(FileTileSet),
     HTTP(HTTPTileSet),
+    S3(S3TileSet),
 }
 
 impl TileSet {
     pub fn new(options: TileSetOptions) -> Result<Self, Box<dyn std::error::Error>> {
-        if options.path.starts_with("http://") || options.path.starts_with("https://") {
+        if options.path.starts_with("s3://") {
+            // Parse S3 path: s3://bucket/key_prefix
+            let without_s3 = options.path.strip_prefix("s3://").unwrap_or(&options.path);
+            let parts: Vec<&str> = without_s3.split('/').collect();
+            if parts.is_empty() {
+                return Err("Invalid S3 path: bucket name is required".into());
+            }
+
+            let bucket = parts[0].to_string();
+            let key_prefix = if parts.len() > 1 {
+                parts[1..].join("/")
+            } else {
+                String::new()
+            };
+
+            Ok(TileSet::S3(S3TileSet::new(
+                bucket,
+                key_prefix,
+                options.gzip,
+                options.s3_access_key_id,
+                options.s3_secret_access_key,
+                options.s3_region,
+                options.s3_endpoint,
+            )?))
+        } else if options.path.starts_with("http://") || options.path.starts_with("https://") {
             Ok(TileSet::HTTP(HTTPTileSet::new(
                 options.path.clone(),
                 options,
@@ -104,6 +139,7 @@ impl TileSetWithCache {
         let tileset = match &self.tileset {
             TileSet::File(file_tileset) => file_tileset.get_tile(lat_floor, lng_floor).await,
             TileSet::HTTP(s3_tileset) => s3_tileset.get_tile(lat_floor, lng_floor).await,
+            TileSet::S3(s3_tileset) => s3_tileset.get_tile(lat_floor, lng_floor).await,
         };
 
         match tileset {
@@ -132,6 +168,10 @@ mod tests {
             path: String::from("test_files"),
             cache_size: 128,
             gzip: true,
+            s3_access_key_id: None,
+            s3_secret_access_key: None,
+            s3_region: None,
+            s3_endpoint: None,
         };
         let tileset = TileSetWithCache::new(options).unwrap();
         let elevation = tileset.get_elevation(45.123, 9.456).await;
@@ -146,6 +186,10 @@ mod tests {
             path: String::from("test_files"),
             cache_size: 128,
             gzip: true,
+            s3_access_key_id: None,
+            s3_secret_access_key: None,
+            s3_region: None,
+            s3_endpoint: None,
         };
         let tileset = TileSetWithCache::new(options).unwrap();
         let elevation = tileset.get_elevation(100.0, 200.0).await;
@@ -218,6 +262,10 @@ mod tests {
             path: String::from("custom_path"),
             cache_size: 256,
             gzip: false,
+            s3_access_key_id: None,
+            s3_secret_access_key: None,
+            s3_region: None,
+            s3_endpoint: None,
         };
 
         assert_eq!(options.path, "custom_path");
