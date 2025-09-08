@@ -77,9 +77,10 @@ pub fn get_uri_from_config(config: Config) -> String {
 
     // If S3 credentials are provided, prefer S3 direct access over HTTP
     if config.s3_access_key_id.is_some() && config.s3_secret_access_key.is_some() {
-        if let (Some(_endpoint), Some(_bucket)) = (&config.s3_endpoint, &config.s3_bucket) {
-            // For explicit S3 endpoint and bucket, return as s3:// URL for direct S3 access
-            return tile_folder;
+        if let (Some(_endpoint), Some(bucket)) = (&config.s3_endpoint, &config.s3_bucket) {
+            // For explicit S3 endpoint and bucket, construct s3:// URL for direct S3 access
+            let path = tile_folder.trim_start_matches('/');
+            return format!("s3://{}/{}", bucket, path);
         } else if tile_folder.starts_with("s3://") {
             // Already an S3 URL, return as-is for direct S3 access
             return tile_folder;
