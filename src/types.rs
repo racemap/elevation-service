@@ -1,12 +1,12 @@
 use serde::{Deserialize, Serialize};
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 pub struct LatLng {
     pub lat: f64,
     pub lng: f64,
 }
 
-#[derive(Deserialize, Debug)]
+#[derive(Deserialize)]
 #[serde(transparent)]
 pub struct LatLngs {
     pub latlngs: Vec<(f64, f64)>,

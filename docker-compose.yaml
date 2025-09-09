@@ -9,7 +9,6 @@ services:
     mem_limit: ${MEMORY_LIMIT}
     depends_on:
       - nginx-proxy
-      - jaeger
     volumes:
       - ${TILE_SET_PATH}:/app/data
     environment:
@@ -23,23 +22,8 @@ services:
       PORT: 3000
       BIND: 0.0.0.0
       RUST_LOG: ${LOG_LEVEL:-info}
-      OTEL_SERVICE_NAME: elevation-service
-      OTEL_EXPORTER_OTLP_ENDPOINT: http://jaeger:4317
     expose:
       - '3000'
-
-  jaeger:
-    image: jaegertracing/all-in-one:1.58
-    environment:
-      - COLLECTOR_OTLP_ENABLED=true
-    ports:
-      - "16686:16686"  # Jaeger UI
-      - "14250:14250"  # Jaeger gRPC
-      - "4317:4317"    # OTLP gRPC receiver
-      - "4318:4318"    # OTLP HTTP receiver
-    profiles:
-      - development
-      - telemetry
 
   nginx-proxy:
     image: nginxproxy/nginx-proxy:1.7.1

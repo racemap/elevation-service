@@ -33,7 +33,7 @@ pub async fn get_status(tileset: Arc<TileSetWithCache>) -> Result<impl Reply, Re
     }
 }
 
-#[instrument(skip(tileset), fields(lat = query.lat, lng = query.lng))]
+#[instrument(skip_all, fields(lat = query.lat, lng = query.lng))]
 pub async fn get_elevation(
     query: LatLng,
     tileset: Arc<TileSetWithCache>,
@@ -53,7 +53,7 @@ pub async fn get_elevation(
     Ok(reply::json(&elevation).into_response())
 }
 
-#[instrument(skip(tileset, config), fields(points_count = locations.latlngs.len()))]
+#[instrument(skip_all, fields(points_count = locations.latlngs.len()))]
 pub async fn post_elevations(
     locations: LatLngs,
     tileset: Arc<TileSetWithCache>,
