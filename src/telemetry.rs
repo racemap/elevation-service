@@ -66,8 +66,5 @@ pub fn init_telemetry() -> Result<(), Box<dyn std::error::Error>> {
         info!("Basic tracing initialized (no OTLP export)");
     }
 
-    // Note: Skipping LogTracer::init() to avoid conflicts with existing loggers.
-    // Modern approach is to use tracing directly instead of log macros.
-
     Ok(())
 }
