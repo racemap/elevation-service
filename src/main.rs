@@ -5,10 +5,9 @@ use crate::{
     tileset::{TileSetOptions, TileSetWithCache},
     types::{LatLng, LatLngs},
 };
-use log::debug;
 use opentelemetry::global;
 use std::sync::Arc;
-use tracing::info;
+use tracing::{debug, info};
 use warp::Filter;
 
 mod config;
@@ -22,7 +21,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize telemetry FIRST, before anything else
     init_telemetry()?;
 
-    // Access the configuration values  
+    // Access the configuration values
     let config = config::CONFIG.clone();
     let port = config.port;
     let bind = config.bind;
@@ -119,7 +118,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     warp::serve(routes).run((bind, port)).await;
 
     info!("Server shutting down");
-    
+
     // Shutdown telemetry
     global::shutdown_tracer_provider();
 

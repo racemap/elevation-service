@@ -22,18 +22,18 @@ pub async fn get_status(tileset: Arc<TileSetWithCache>) -> Result<impl Reply, Re
         Ok(_) => {
             info!("Status check passed");
             Ok(reply::with_status("Ok", warp::http::StatusCode::OK))
-        },
+        }
         Err(_) => {
             error!("Status check failed");
             Ok(reply::with_status(
                 "Error",
                 warp::http::StatusCode::INTERNAL_SERVER_ERROR,
             ))
-        },
+        }
     }
 }
 
-#[instrument(skip_all, fields(lat = query.lat, lng = query.lng))]
+#[instrument(skip_all, fields(coord = format!("{},{}", query.lat, query.lng)))]
 pub async fn get_elevation(
     query: LatLng,
     tileset: Arc<TileSetWithCache>,
@@ -43,7 +43,7 @@ pub async fn get_elevation(
         Ok(elevation) => {
             info!(elevation = elevation, "Elevation retrieved successfully");
             elevation
-        },
+        }
         Err(e) => {
             error!(error = %e, "Failed to get elevation");
             return Ok(convert_io_error_to_warp_replay(e).into_response());
@@ -89,7 +89,10 @@ pub async fn post_elevations(
         }
     }
 
-    info!(elevations_count = elevations.len(), "Batch elevation request completed");
+    info!(
+        elevations_count = elevations.len(),
+        "Batch elevation request completed"
+    );
     Ok(reply::json(&ElevationResponse { elevations }).into_response())
 }
 

@@ -1,8 +1,8 @@
 use crate::tileset::{TileSetOptions, TileSetWithCache};
 use flate2::read::GzDecoder;
-use log::debug;
 use reqwest::Client;
 use std::io::Read;
+use tracing::{debug, instrument};
 
 pub struct HTTPTileSet {
     base_url: String,
@@ -14,6 +14,7 @@ impl HTTPTileSet {
         Self { base_url, options }
     }
 
+    #[instrument(name="get_tile_http", skip_all, fields(coord = format!("{},{}", lat, lng)))]
     pub async fn get_tile(
         &self,
         lat: f64,
