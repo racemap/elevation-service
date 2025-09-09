@@ -8,7 +8,6 @@ byte-unit = "5.1.6"
 dotenvy = "0.15.7"
 flate2 = "1.1.2"
 futures = "0.3.31"
-log = "0.4.27"
 moka = { version = "0.12.10", features = ["future"] }
 once_cell = "1.21.3"
 opentelemetry = "0.21"
