@@ -4,9 +4,14 @@ use crate::{
     tileset::{TileSetOptions, TileSetWithCache},
     types::{LatLng, LatLngs},
 };
-use env_logger;
 use log::debug;
+use opentelemetry::global;
+use opentelemetry_otlp::WithExportConfig;
+use opentelemetry_sdk::{runtime::Tokio};
 use std::sync::Arc;
+use tracing::{info, warn};
+use tracing_opentelemetry::OpenTelemetryLayer;
+use tracing_subscriber::{prelude::*, EnvFilter};
 use warp::Filter;
 
 mod config;
@@ -14,17 +19,74 @@ mod handlers;
 mod tileset;
 mod types;
 
+fn init_telemetry() -> Result<(), Box<dyn std::error::Error>> {
+    // Get service name from environment or use default
+    let service_name = std::env::var("OTEL_SERVICE_NAME")
+        .unwrap_or_else(|_| "elevation-service".to_string());
+    
+    // Check if OTLP endpoint is configured
+    if let Ok(otlp_endpoint) = std::env::var("OTEL_EXPORTER_OTLP_ENDPOINT") {
+        info!("Initializing OpenTelemetry with OTLP endpoint: {}", otlp_endpoint);
+        
+        // Configure OTLP exporter
+        let tracer = opentelemetry_otlp::new_pipeline()
+            .tracing()
+            .with_exporter(
+                opentelemetry_otlp::new_exporter()
+                    .tonic()
+                    .with_endpoint(&otlp_endpoint),
+            )
+            .with_trace_config(
+                opentelemetry_sdk::trace::config()
+                    .with_resource(opentelemetry_sdk::Resource::new(vec![
+                        opentelemetry_semantic_conventions::resource::SERVICE_NAME.string(service_name),
+                        opentelemetry_semantic_conventions::resource::SERVICE_VERSION.string(env!("CARGO_PKG_VERSION")),
+                    ]))
+            )
+            .install_batch(Tokio)?;
+        
+        // Set up tracing subscriber with OpenTelemetry layer
+        let telemetry_layer = OpenTelemetryLayer::new(tracer);
+        
+        tracing_subscriber::registry()
+            .with(EnvFilter::from_default_env())
+            .with(tracing_subscriber::fmt::layer())
+            .with(telemetry_layer)
+            .try_init()
+            .map_err(|e| format!("Failed to initialize tracing with OpenTelemetry: {}", e))?;
+            
+        info!("OpenTelemetry tracing initialized successfully");
+    } else {
+        warn!("OTEL_EXPORTER_OTLP_ENDPOINT not set, falling back to basic tracing");
+        
+        // Fall back to basic tracing without OTLP export
+        tracing_subscriber::registry()
+            .with(EnvFilter::from_default_env())
+            .with(tracing_subscriber::fmt::layer())
+            .try_init()
+            .map_err(|e| format!("Failed to initialize basic tracing: {}", e))?;
+            
+        info!("Basic tracing initialized (no OTLP export)");
+    }
+    
+    // Note: Skipping LogTracer::init() to avoid conflicts with existing loggers.
+    // Modern approach is to use tracing directly instead of log macros.
+    
+    Ok(())
+}
+
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
-    // Access the configuration values
+    // Initialize telemetry FIRST, before anything else
+    init_telemetry()?;
+
+    // Access the configuration values  
     let config = config::CONFIG.clone();
     let port = config.port;
     let bind = config.bind;
     let max_post_size = config.max_post_size;
 
-    // Initialize the logger
-    env_logger::init();
-
+    info!("Starting elevation service");
     debug!("Cache Size: {}", config.cache_size);
     debug!("Tile Set Path: {:?}", config.tile_set_path);
     debug!("Max Post Size: {}", max_post_size);
@@ -111,7 +173,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(cors);
 
     // Start the server
+    info!("Starting server on {}:{}", bind, port);
     warp::serve(routes).run((bind, port)).await;
+
+    info!("Server shutting down");
+    
+    // Shutdown telemetry
+    global::shutdown_tracer_provider();
 
     Ok(())
 }

@@ -18,8 +18,10 @@ COPY --from=builder /app/target/release/elevation-service /usr/local/bin/elevati
 ENV TILE_SET_CACHE=128
 ENV TILE_SET_PATH=/app/data
 ENV MAX_POST_SIZE=700kb
-ENV RUST_LOG=error
+ENV RUST_LOG=info
 ENV PORT=3000
+ENV OTEL_SERVICE_NAME=elevation-service
+ENV OTEL_EXPORTER_OTLP_ENDPOINT=http://jaeger:4317
 
 USER appuser
 
