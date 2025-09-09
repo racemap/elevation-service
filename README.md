@@ -92,6 +92,69 @@ The following environment variables are supported for S3 configuration:
 - `PORT`: Server port (default: 3000)
 - `BIND`: Bind address (default: 0.0.0.0)
 
+## OpenTelemetry Telemetry
+
+The elevation service now includes integrated OpenTelemetry (OTEL) telemetry for distributed tracing, structured logging, and performance monitoring. The implementation uses standard Rust crates and provides comprehensive observability.
+
+### Features
+
+- **Distributed Tracing**: Tracks requests through the entire service lifecycle
+- **Structured Logging**: Enhanced logging with structured events and context
+- **Performance Monitoring**: Automatic instrumentation of key operations
+- **OTLP Export**: Sends telemetry data to OpenTelemetry-compatible backends
+- **Fallback Support**: Gracefully falls back to basic tracing when OTLP is not configured
+
+### Configuration
+
+Configure telemetry using these environment variables:
+
+- `OTEL_SERVICE_NAME`: Service name for telemetry (default: "elevation-service")
+- `OTEL_EXPORTER_OTLP_ENDPOINT`: OTLP endpoint URL (e.g., "http://jaeger:4317")
+- `RUST_LOG`: Log level for tracing (e.g., "info", "debug", "trace")
+
+### Running with Jaeger
+
+For development and testing, use the provided development docker-compose file:
+
+```bash
+# Start Jaeger and the elevation service
+docker compose -f docker-compose.dev.yaml up
+
+# Access Jaeger UI
+open http://localhost:16686
+```
+
+### Production Deployment
+
+For production, set the environment variables in your deployment:
+
+```bash
+export OTEL_SERVICE_NAME=elevation-service
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://your-jaeger-instance:4317
+export RUST_LOG=info
+```
+
+### Instrumented Operations
+
+The following operations are automatically traced:
+
+- **HTTP Requests**: All incoming requests with method, path, and response status
+- **Elevation Queries**: Single and batch elevation requests with coordinates
+- **Status Checks**: Health check operations
+- **Tile Loading**: HGT tile loading and caching operations
+- **Error Handling**: Structured error logging with context
+
+### Telemetry Data
+
+The service generates the following types of telemetry data:
+
+- **Spans**: Distributed traces for each operation
+- **Events**: Structured log events with contextual information
+- **Attributes**: Service metadata, coordinates, response times
+- **Metrics**: Performance counters and operational metrics
+
+When OTLP endpoint is not configured, the service falls back to console-based structured logging.
+
 ## License
 
 MIT
