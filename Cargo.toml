@@ -23,5 +23,5 @@ serde = { version = "1.0.219", features = ["derive"] }
 tokio = { version = "1", features = ["full"] }
 tracing = "0.1"
 tracing-opentelemetry = "0.22"
-tracing-subscriber = { version = "0.3", features = ["env-filter"] }
+tracing-subscriber = { version = "0.3.20", features = ["env-filter"] }
 warp = "0.3.7"
