@@ -1,6 +1,6 @@
 services:
   elevation:
-    image: racemap/elevation-service:v2.0.5
+    image: racemap/elevation-service:v2.1.0
     build:
       context: .
       dockerfile: Dockerfile
@@ -9,8 +9,6 @@ services:
     mem_limit: ${MEMORY_LIMIT}
     depends_on:
       - nginx-proxy
-    volumes:
-      - ${TILE_SET_PATH}:/app/data
     environment:
       VIRTUAL_HOST: ${DOMAIN}
       VIRTUAL_PORT: 3000
@@ -22,6 +20,11 @@ services:
       PORT: 3000
       BIND: 0.0.0.0
       RUST_LOG: ${LOG_LEVEL:-info}
+      S3_ENDPOINT: ${S3_ENDPOINT}
+      S3_BUCKET: ${S3_BUCKET}
+      S3_ACCESS_KEY: ${S3_ACCESS_KEY}
+      S3_SECRET_ACCESS_KEY: ${S3_SECRET_ACCESS_KEY}
+      S3_REGION: ${S3_REGION}
     expose:
       - '3000'
 
