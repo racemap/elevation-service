@@ -1,8 +1,8 @@
 use crate::tileset::TileSetWithCache;
 use flate2::read::GzDecoder;
-use log::debug;
 use s3::{Bucket, Region, creds::Credentials};
 use std::io::Read;
+use tracing::{debug, instrument};
 
 pub struct S3TileSet {
     bucket: Box<Bucket>,
@@ -68,6 +68,7 @@ impl S3TileSet {
         })
     }
 
+    #[instrument(name="get_tile_s3", skip_all, fields(coord = format!("{},{}", lat, lng)))]
     pub async fn get_tile(
         &self,
         lat: f64,

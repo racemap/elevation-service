@@ -1,6 +1,5 @@
 use std::io::{Error, ErrorKind};
-
-use log::debug;
+use tracing::{debug, instrument};
 
 #[derive(Debug, Clone)]
 pub struct HGT {
@@ -10,6 +9,7 @@ pub struct HGT {
 }
 
 impl HGT {
+    #[instrument(skip_all, fields(coord = format!("{},{}", sw_lat_lng.0, sw_lat_lng.1)))]
     pub fn new(buffer: Vec<u8>, sw_lat_lng: (f64, f64)) -> Result<Self, Error> {
         let size;
         let resolution;
@@ -43,6 +43,7 @@ impl HGT {
         })
     }
 
+    #[instrument(skip_all, fields(coord = format!("{},{}", lat, lng)))]
     pub fn get_elevation(&self, lat: f64, lng: f64) -> Result<i16, Error> {
         let size = self.size - 1;
         let row = (lat - self.sw_lat_lng.0) * size as f64;
@@ -61,6 +62,7 @@ impl HGT {
         HGT::interpolation(self, row, col)
     }
 
+    #[instrument(skip_all, fields(row, col), level = "trace")]
     fn interpolation(&self, row: f64, col: f64) -> Result<i16, Error> {
         let row_low = row.floor();
         let row_high = row_low + 1.0;
@@ -101,6 +103,7 @@ impl HGT {
         Ok(value)
     }
 
+    #[instrument(skip_all, fields(row, col), level = "trace")]
     fn get_row_col_value(&self, row: f64, col: f64) -> Result<i16, Error> {
         let offset = ((self.size - row as usize - 1) * self.size + col as usize) * 2;
         if offset + 1 >= self.buffer.len() {

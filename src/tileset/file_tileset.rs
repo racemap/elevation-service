@@ -1,9 +1,9 @@
 use crate::tileset::{TileSetOptions, TileSetWithCache};
 use flate2::read::GzDecoder;
-use log::debug;
 use std::io::Read;
 use std::path::PathBuf;
 use tokio::fs;
+use tracing::{debug, instrument};
 
 pub struct FileTileSet {
     folder: PathBuf,
@@ -18,6 +18,7 @@ impl FileTileSet {
         }
     }
 
+    #[instrument(name = "get_tile_file", skip_all, fields(coord = format!("{},{}", lat, lng)))]
     pub async fn get_tile(
         &self,
         lat: f64,

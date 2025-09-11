@@ -1,30 +1,33 @@
 use crate::{
     config::get_uri_from_config,
     handlers::{get_elevation, get_status, handle_options, post_elevations},
+    telemetry::init_telemetry,
     tileset::{TileSetOptions, TileSetWithCache},
     types::{LatLng, LatLngs},
 };
-use env_logger;
-use log::debug;
+use opentelemetry::global;
 use std::sync::Arc;
+use tracing::{debug, info};
 use warp::Filter;
 
 mod config;
 mod handlers;
+mod telemetry;
 mod tileset;
 mod types;
 
 #[tokio::main]
 async fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Initialize telemetry FIRST, before anything else
+    init_telemetry()?;
+
     // Access the configuration values
     let config = config::CONFIG.clone();
     let port = config.port;
     let bind = config.bind;
     let max_post_size = config.max_post_size;
 
-    // Initialize the logger
-    env_logger::init();
-
+    info!("Starting elevation service");
     debug!("Cache Size: {}", config.cache_size);
     debug!("Tile Set Path: {:?}", config.tile_set_path);
     debug!("Max Post Size: {}", max_post_size);
@@ -111,7 +114,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .with(cors);
 
     // Start the server
+    info!("Starting server on {}:{}", bind, port);
     warp::serve(routes).run((bind, port)).await;
+
+    info!("Server shutting down");
+
+    // Shutdown telemetry
+    global::shutdown_tracer_provider();
 
     Ok(())
 }

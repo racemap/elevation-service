@@ -18,7 +18,7 @@ COPY --from=builder /app/target/release/elevation-service /usr/local/bin/elevati
 ENV TILE_SET_CACHE=128
 ENV TILE_SET_PATH=/app/data
 ENV MAX_POST_SIZE=700kb
-ENV RUST_LOG=error
+ENV RUST_LOG=info
 ENV PORT=3000
 
 USER appuser
