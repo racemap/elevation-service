@@ -57,7 +57,7 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
         "Max Parallel Processing: {}",
         config.max_parallel_processing
     );
-    debug!("Max Tokio Threads: {:?}", config.max_tokio_threads);
+    debug!("Max Number of Threads: {:?}", config.max_tokio_threads);
     debug!(
         "Max Concurrent Handlers: {}",
         config.max_concurrent_handlers
