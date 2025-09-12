@@ -12,6 +12,8 @@ pub struct Config {
     pub tile_set_path: String,
     pub max_post_size: Byte,
     pub max_parallel_processing: usize,
+    pub max_tokio_threads: Option<usize>,
+    pub max_concurrent_handlers: usize,
     pub port: u16,
     pub bind: Ipv4Addr,
     pub s3_endpoint: Option<String>,
@@ -48,6 +50,13 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
             .ok()
             .and_then(|s| s.parse::<usize>().ok())
             .unwrap_or(500), // Default to 10
+        max_tokio_threads: env::var("MAX_THREADS")
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok()),
+        max_concurrent_handlers: env::var("MAX_CONCURRENT_HANDLERS")
+            .ok()
+            .and_then(|s| s.parse::<usize>().ok())
+            .unwrap_or(1000), // Default to 1000 concurrent handlers
         port: env::var("PORT")
             .ok()
             .and_then(|s| s.parse::<u16>().ok())

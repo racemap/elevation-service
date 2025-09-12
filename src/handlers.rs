@@ -4,6 +4,7 @@ use std::{
     io::{Error, ErrorKind},
     sync::Arc,
 };
+use tokio::sync::Semaphore;
 use tracing::{error, info, instrument};
 use warp::{Rejection, Reply, filters::path::FullPath, reply};
 
@@ -13,8 +14,21 @@ use crate::{
     types::{ElevationResponse, LatLng, LatLngs},
 };
 
-#[instrument(skip(tileset))]
-pub async fn get_status(tileset: Arc<TileSetWithCache>) -> Result<impl Reply, Rejection> {
+#[derive(Debug)]
+struct InternalError;
+
+impl warp::reject::Reject for InternalError {}
+
+#[instrument(skip(tileset, semaphore))]
+pub async fn get_status(
+    tileset: Arc<TileSetWithCache>,
+    semaphore: Arc<Semaphore>,
+) -> Result<impl Reply, Rejection> {
+    let _permit = semaphore.acquire().await.map_err(|_| {
+        error!("Failed to acquire semaphore permit for status check");
+        warp::reject::custom(InternalError)
+    })?;
+
     info!("Status check requested");
     let random_lat = rand::random::<f64>() * 180.0 - 90.0;
     let random_lng = rand::random::<f64>() * 360.0 - 180.0;
@@ -37,7 +51,13 @@ pub async fn get_status(tileset: Arc<TileSetWithCache>) -> Result<impl Reply, Re
 pub async fn get_elevation(
     query: LatLng,
     tileset: Arc<TileSetWithCache>,
+    semaphore: Arc<Semaphore>,
 ) -> Result<impl Reply, Rejection> {
+    let _permit = semaphore.acquire().await.map_err(|_| {
+        error!("Failed to acquire semaphore permit for elevation request");
+        warp::reject::custom(InternalError)
+    })?;
+
     info!("Single elevation request");
     let elevation = match tileset.get_elevation(query.lat, query.lng).await {
         Ok(elevation) => {
@@ -58,7 +78,13 @@ pub async fn post_elevations(
     locations: LatLngs,
     tileset: Arc<TileSetWithCache>,
     config: Config,
+    semaphore: Arc<Semaphore>,
 ) -> Result<impl Reply, Rejection> {
+    let _permit = semaphore.acquire().await.map_err(|_| {
+        error!("Failed to acquire semaphore permit for batch elevation request");
+        warp::reject::custom(InternalError)
+    })?;
+
     info!("Batch elevation request");
     let elevation_futures = locations.into_iter().map(|loc| {
         let lat = loc.0;

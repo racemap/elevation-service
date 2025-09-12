@@ -7,6 +7,7 @@ use crate::{
 };
 use opentelemetry::global;
 use std::sync::Arc;
+use tokio::sync::Semaphore;
 use tracing::{debug, info};
 use warp::Filter;
 
@@ -16,8 +17,26 @@ mod telemetry;
 mod tileset;
 mod types;
 
-#[tokio::main]
-async fn main() -> Result<(), Box<dyn std::error::Error>> {
+fn main() -> Result<(), Box<dyn std::error::Error>> {
+    // Access the configuration values early to use them in runtime creation
+    let config = config::CONFIG.clone();
+
+    // Create tokio runtime with optional thread limit
+    let runtime = if let Some(max_threads) = config.max_tokio_threads {
+        tokio::runtime::Builder::new_multi_thread()
+            .worker_threads(max_threads)
+            .enable_all()
+            .build()?
+    } else {
+        tokio::runtime::Builder::new_multi_thread()
+            .enable_all()
+            .build()?
+    };
+
+    runtime.block_on(async_main())
+}
+
+async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
     // Initialize telemetry FIRST, before anything else
     init_telemetry()?;
 
@@ -38,8 +57,16 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         "Max Parallel Processing: {}",
         config.max_parallel_processing
     );
+    debug!("Max Tokio Threads: {:?}", config.max_tokio_threads);
+    debug!(
+        "Max Concurrent Handlers: {}",
+        config.max_concurrent_handlers
+    );
     debug!("S3 Endpoint: {:?}", config.s3_endpoint);
     debug!("S3 Bucket: {:?}", config.s3_bucket);
+
+    // Create semaphore for limiting concurrent handlers
+    let semaphore = Arc::new(Semaphore::new(config.max_concurrent_handlers));
 
     let options = TileSetOptions {
         path: path,
@@ -55,11 +82,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
     // Create a shared filter for tileset
     let tileset_filter = warp::any().map(move || tileset.clone());
     let config_filter = warp::any().map(move || config.clone());
+    let semaphore_filter = warp::any().map(move || semaphore.clone());
 
     // Define the /status route
     let status_route = warp::path("status")
         .and(warp::get())
         .and(tileset_filter.clone())
+        .and(semaphore_filter.clone())
         .and_then(get_status);
 
     // Define the GET route for elevation
@@ -67,11 +96,13 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and(warp::get())
         .and(warp::query::<LatLng>())
         .and(tileset_filter.clone())
+        .and(semaphore_filter.clone())
         .and_then(get_elevation)
         .or(warp::path("api")
             .and(warp::get())
             .and(warp::query::<LatLng>())
             .and(tileset_filter.clone())
+            .and(semaphore_filter.clone())
             .and_then(get_elevation));
 
     // Define the POST route for elevations
@@ -81,6 +112,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
         .and(warp::body::json::<LatLngs>())
         .and(tileset_filter.clone())
         .and(config_filter.clone())
+        .and(semaphore_filter.clone())
         .and_then(post_elevations)
         .or(warp::path("api")
             .and(warp::post())
@@ -88,6 +120,7 @@ async fn main() -> Result<(), Box<dyn std::error::Error>> {
             .and(warp::body::json::<LatLngs>())
             .and(tileset_filter.clone())
             .and(config_filter.clone())
+            .and(semaphore_filter.clone())
             .and_then(post_elevations));
 
     // Define OPTIONS route to handle CORS preflight requests
