@@ -26,6 +26,56 @@ curl 'http://localhost:3000/?lat=51.3&lng=13.4'
 # < ele
 ```
 
+## Resource Management
+
+The elevation service includes several configuration options to control resource usage and limit concurrency:
+
+### Limiting Tokio Runtime Threads
+
+To limit the number of threads used by the tokio runtime (useful for containerized environments). Should be not greater, then the number of cpu cores:
+
+```bash
+docker run --rm \
+  -eTILE_SET_PATH=s3://elevation-tiles-prod/skadi \
+  -eMAX_TOKIO_THREADS=4 \
+  -p3000:3000 racemap/elevation-service
+```
+
+### Limiting Concurrent Request Handlers
+
+To limit the number of concurrent request handlers (helps prevent overload):
+
+```bash
+docker run --rm \
+  -eTILE_SET_PATH=s3://elevation-tiles-prod/skadi \
+  -eMAX_CONCURRENT_HANDLERS=100 \
+  -p3000:3000 racemap/elevation-service
+```
+
+### Limiting Parallel Processing in Batch Requests
+
+To control the number of parallel elevation lookups within batch requests:
+
+```bash
+docker run --rm \
+  -eTILE_SET_PATH=s3://elevation-tiles-prod/skadi \
+  -eMAX_PARALLEL_PROCESSING=50 \
+  -p3000:3000 racemap/elevation-service
+```
+
+### Example: Resource-Constrained Environment
+
+For a resource-constrained environment like a small container with limited CPU and memory:
+
+```bash
+docker run --rm \
+  -eTILE_SET_PATH=s3://elevation-tiles-prod/skadi \
+  -eMAX_TOKIO_THREADS=2 \
+  -eMAX_CONCURRENT_HANDLERS=50 \
+  -eMAX_PARALLEL_PROCESSING=25 \
+  -p3000:3000 racemap/elevation-service
+```
+
 ## Usage with pre-downloaded data
 
 Download data (ca. 200 GB):
@@ -78,19 +128,26 @@ docker run --rm \
 
 ### Environment Variables
 
-The following environment variables are supported for S3 configuration:
+The following environment variables are supported for configuration:
 
+#### General Configuration
 - `TILE_SET_PATH`: Path to tiles (local path, HTTP/HTTPS URL, or s3:// URL)
+- `TILE_SET_CACHE`: Cache size for tiles (default: 128)
+- `MAX_POST_SIZE`: Maximum POST payload size (default: 500kb)
+- `PORT`: Server port (default: 3000)
+- `BIND`: Bind address (default: 0.0.0.0)
+
+#### Resource Limiting
+- `MAX_PARALLEL_PROCESSING`: Maximum parallel tile processing for batch requests (default: 500)
+- `MAX_THREADS`: Maximum number of tokio runtime threads (optional, defaults to number of CPU cores)
+- `MAX_CONCURRENT_HANDLERS`: Maximum number of concurrent request handlers using semaphore (default: 1000)
+
+#### S3 Configuration
 - `S3_ACCESS_KEY_ID`: S3 access key ID for authentication (also accepts `AWS_ACCESS_KEY_ID`)
 - `S3_SECRET_ACCESS_KEY`: S3 secret access key for authentication (also accepts `AWS_SECRET_ACCESS_KEY`)
 - `S3_REGION`: S3 region (default: us-east-1, also accepts `AWS_REGION`)
 - `S3_ENDPOINT`: Custom S3 endpoint for S3-compatible services
 - `S3_BUCKET`: S3 bucket name (alternative to specifying in TILE_SET_PATH)
-- `TILE_SET_CACHE`: Cache size for tiles (default: 128)
-- `MAX_POST_SIZE`: Maximum POST payload size (default: 500kb)
-- `MAX_PARALLEL_PROCESSING`: Maximum parallel tile processing (default: 500)
-- `PORT`: Server port (default: 3000)
-- `BIND`: Bind address (default: 0.0.0.0)
 
 ## OpenTelemetry Telemetry
 

@@ -12,6 +12,8 @@ pub struct Config {
     pub tile_set_path: String,
     pub max_post_size: Byte,
     pub max_parallel_processing: usize,
+    pub max_tokio_threads: Option<usize>,
+    pub max_concurrent_handlers: usize,
     pub port: u16,
     pub bind: Ipv4Addr,
     pub s3_endpoint: Option<String>,
@@ -26,11 +28,8 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
     dotenv().ok(); // Loads .env (only the first time it's called)
 
     Config {
-        cache_size: env::var("TILE_SET_CACHE")
-            .ok()
-            .and_then(|s| s.parse::<u64>().ok())
-            .unwrap_or(128),
-        tile_set_path: env::var("TILE_SET_PATH").unwrap_or_else(|_| {
+        cache_size: parse_env_var::<u64>("TILE_SET_CACHE").unwrap_or(128),
+        tile_set_path: get_non_empty_env_var("TILE_SET_PATH").unwrap_or_else(|| {
             String::from(
                 env::current_dir()
                     .expect("Failed to get current_dir")
@@ -38,46 +37,33 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
                     .expect("Failed to convert path to string"),
             )
         }),
-        max_post_size: env::var("MAX_POST_SIZE")
-            .ok()
+        max_post_size: get_non_empty_env_var("MAX_POST_SIZE")
             .and_then(|s| Byte::parse_str(s, true).ok())
-            .unwrap_or_else(|| {
-                Byte::parse_str("500kb", true).unwrap() // Default to 10 MB
-            }),
-        max_parallel_processing: env::var("MAX_PARALLEL_PROCESSING")
-            .ok()
-            .and_then(|s| s.parse::<usize>().ok())
-            .unwrap_or(500), // Default to 10
-        port: env::var("PORT")
-            .ok()
-            .and_then(|s| s.parse::<u16>().ok())
-            .unwrap_or(3000),
-        bind: env::var("BIND")
-            .ok()
-            .and_then(|s| s.parse::<Ipv4Addr>().ok())
-            .unwrap_or(Ipv4Addr::new(0, 0, 0, 0)), // Default to
-        s3_endpoint: env::var("S3_ENDPOINT").ok(),
-        s3_bucket: env::var("S3_BUCKET").ok(),
-        s3_access_key_id: env::var("S3_ACCESS_KEY_ID")
-            .or_else(|_| env::var("AWS_ACCESS_KEY_ID"))
-            .ok(),
-        s3_secret_access_key: env::var("S3_SECRET_ACCESS_KEY")
-            .or_else(|_| env::var("AWS_SECRET_ACCESS_KEY"))
-            .ok(),
-        s3_region: env::var("S3_REGION")
-            .or_else(|_| env::var("AWS_REGION"))
-            .ok(),
+            .unwrap_or_else(|| Byte::parse_str("500kb", true).unwrap()),
+        max_parallel_processing: parse_env_var::<usize>("MAX_PARALLEL_PROCESSING").unwrap_or(500),
+        max_tokio_threads: parse_env_var::<usize>("MAX_THREADS"),
+        max_concurrent_handlers: parse_env_var::<usize>("MAX_CONCURRENT_HANDLERS").unwrap_or(1000),
+        port: parse_env_var::<u16>("PORT").unwrap_or(3000),
+        bind: parse_env_var::<Ipv4Addr>("BIND").unwrap_or(Ipv4Addr::new(0, 0, 0, 0)),
+        s3_endpoint: get_non_empty_env_var("S3_ENDPOINT"),
+        s3_bucket: get_non_empty_env_var("S3_BUCKET"),
+        s3_access_key_id: get_non_empty_env_var("S3_ACCESS_KEY_ID")
+            .or_else(|| get_non_empty_env_var("AWS_ACCESS_KEY_ID")),
+        s3_secret_access_key: get_non_empty_env_var("S3_SECRET_ACCESS_KEY")
+            .or_else(|| get_non_empty_env_var("AWS_SECRET_ACCESS_KEY")),
+        s3_region: get_non_empty_env_var("S3_REGION")
+            .or_else(|| get_non_empty_env_var("AWS_REGION")),
     }
 });
 
 pub fn get_uri_from_config(config: Config) -> String {
     let tile_folder = config.tile_set_path;
-    let s3_endpoint = &config.s3_endpoint;
-    let s3_bucket = &config.s3_bucket;
+    let s3_endpoint = config.s3_endpoint.as_ref().filter(|s| !s.trim().is_empty());
+    let s3_bucket = config.s3_bucket.as_ref().filter(|s| !s.trim().is_empty());
 
     // If S3 credentials are provided, prefer S3 direct access over HTTP
     if config.s3_access_key_id.is_some() && config.s3_secret_access_key.is_some() {
-        if let (Some(_endpoint), Some(bucket)) = (&config.s3_endpoint, &config.s3_bucket) {
+        if let (Some(_endpoint), Some(bucket)) = (s3_endpoint, s3_bucket) {
             // For explicit S3 endpoint and bucket, construct s3:// URL for direct S3 access
             let path = tile_folder.trim_start_matches('/');
             return format!("s3://{}/{}", bucket, path);
@@ -117,4 +103,22 @@ pub fn get_uri_from_config(config: Config) -> String {
     } else {
         tile_folder
     }
+}
+
+/// Helper function to get environment variable, treating empty strings as None
+/// This handles Docker Compose behavior where unset variables become empty strings
+fn get_non_empty_env_var(key: &str) -> Option<String> {
+    env::var(key).ok().and_then(|s| {
+        let trimmed = s.trim();
+        if trimmed.is_empty() {
+            None
+        } else {
+            Some(trimmed.to_string())
+        }
+    })
+}
+
+/// Helper function to parse environment variable as a specific type, treating empty strings as None
+fn parse_env_var<T: std::str::FromStr>(key: &str) -> Option<T> {
+    get_non_empty_env_var(key).and_then(|s| s.parse().ok())
 }
