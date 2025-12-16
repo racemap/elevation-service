@@ -19,12 +19,12 @@ pub fn init_telemetry() -> Result<(), Box<dyn std::error::Error>> {
             .or_else(|| general_endpoint.clone())
             .unwrap_or_else(|| "http://localhost:4317".to_string());
 
-        // Configure OTLP exporter for traces
+        // Configure OTLP exporter for traces using HTTP (more compatible with proxies)
         let tracer = opentelemetry_otlp::new_pipeline()
             .tracing()
             .with_exporter(
                 opentelemetry_otlp::new_exporter()
-                    .tonic()
+                    .http()
                     .with_endpoint(&trace_endpoint),
             )
             .with_trace_config(opentelemetry_sdk::trace::config().with_resource(
