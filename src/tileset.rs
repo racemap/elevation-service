@@ -105,7 +105,7 @@ impl TileSetWithCache {
         ))
     }
 
-    #[instrument(skip_all, fields(coord = format!("{},{}", lat, lng)))]
+    #[instrument(level = "debug", skip_all, fields(coord = format!("{},{}", lat, lng)))]
     pub async fn get_elevation(&self, lat: f64, lng: f64) -> Result<i16, tokio::io::Error> {
         TileSetWithCache::validate_coordinates(lat, lng)?;
 
@@ -144,7 +144,7 @@ impl TileSetWithCache {
         Ok(())
     }
 
-    #[instrument(skip_all, fields(coord = format!("{},{}", lat_floor, lng_floor)))]
+    #[instrument(level = "debug", skip_all, fields(coord = format!("{},{}", lat_floor, lng_floor)))]
     async fn get_tile_data(
         &self,
         lat_floor: f64,
