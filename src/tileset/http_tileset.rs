@@ -14,7 +14,7 @@ impl HTTPTileSet {
         Self { base_url, options }
     }
 
-    #[instrument(name="get_tile_http", skip_all, fields(coord = format!("{},{}", lat, lng)))]
+    #[instrument(level="debug", name="get_tile_http", skip_all, fields(coord = format!("{},{}", lat, lng)))]
     pub async fn get_tile(
         &self,
         lat: f64,

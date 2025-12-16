@@ -9,7 +9,7 @@ pub struct HGT {
 }
 
 impl HGT {
-    #[instrument(skip_all, fields(coord = format!("{},{}", sw_lat_lng.0, sw_lat_lng.1)))]
+    #[instrument(level="debug", skip_all, fields(coord = format!("{},{}", sw_lat_lng.0, sw_lat_lng.1)))]
     pub fn new(buffer: Vec<u8>, sw_lat_lng: (f64, f64)) -> Result<Self, Error> {
         let size;
         let resolution;
@@ -43,7 +43,7 @@ impl HGT {
         })
     }
 
-    #[instrument(skip_all, fields(coord = format!("{},{}", lat, lng)))]
+    #[instrument(level = "debug", skip_all, fields(coord = format!("{},{}", lat, lng)))]
     pub fn get_elevation(&self, lat: f64, lng: f64) -> Result<i16, Error> {
         let size = self.size - 1;
         let row = (lat - self.sw_lat_lng.0) * size as f64;

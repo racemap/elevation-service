@@ -68,7 +68,7 @@ impl S3TileSet {
         })
     }
 
-    #[instrument(name="get_tile_s3", skip_all, fields(coord = format!("{},{}", lat, lng)))]
+    #[instrument(level="debug", name="get_tile_s3", skip_all, fields(coord = format!("{},{}", lat, lng)))]
     pub async fn get_tile(
         &self,
         lat: f64,
