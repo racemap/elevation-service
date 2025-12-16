@@ -1,5 +1,6 @@
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::runtime::Tokio;
+use opentelemetry_sdk::{runtime::Tokio, trace::BatchConfig};
+use std::time::Duration;
 use tracing::{info, warn};
 use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan, prelude::*};
@@ -19,13 +20,21 @@ pub fn init_telemetry() -> Result<(), Box<dyn std::error::Error>> {
             .or_else(|| general_endpoint.clone())
             .unwrap_or_else(|| "http://localhost:4317".to_string());
 
+        // Configure batch processor with larger queue to handle high throughput
+        let batch_config = BatchConfig::default()
+            .with_max_queue_size(8192) // Increase queue size (default: 2048)
+            .with_max_export_batch_size(512) // Export in larger batches (default: 512)
+            .with_scheduled_delay(Duration::from_secs(2)) // Export every 2 seconds (default: 5s)
+            .with_max_export_timeout(Duration::from_secs(10)); // Fail fast if collector is slow
+
         // Configure OTLP exporter for traces using HTTP (more compatible with proxies)
         let tracer = opentelemetry_otlp::new_pipeline()
             .tracing()
             .with_exporter(
                 opentelemetry_otlp::new_exporter()
                     .http()
-                    .with_endpoint(&trace_endpoint),
+                    .with_endpoint(&trace_endpoint)
+                    .with_timeout(Duration::from_secs(10)), // HTTP request timeout
             )
             .with_trace_config(opentelemetry_sdk::trace::config().with_resource(
                 opentelemetry_sdk::Resource::new(vec![
@@ -35,6 +44,7 @@ pub fn init_telemetry() -> Result<(), Box<dyn std::error::Error>> {
                             .string(env!("CARGO_PKG_VERSION")),
                     ]),
             ))
+            .with_batch_config(batch_config)
             .install_batch(Tokio)?;
 
         // Set up tracing subscriber with OpenTelemetry layer
