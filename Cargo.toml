@@ -16,6 +16,7 @@ opentelemetry-otlp = { version = "0.14", features = [
     "reqwest-client",
 ] }
 opentelemetry-semantic-conventions = "0.13"
+opentelemetry-stdout = { version = "0.2", features = ["trace"] }
 opentelemetry_sdk = { version = "0.21", features = ["rt-tokio"] }
 rand = "0.9.1"
 reqwest = { version = "0.12.20", features = ["json", "gzip"] }
