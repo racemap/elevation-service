@@ -52,7 +52,11 @@ pub fn init_telemetry() -> Result<(), Box<dyn std::error::Error>> {
         // Determine which endpoint to use for traces (signal-specific takes priority)
         let trace_endpoint = traces_endpoint
             .or_else(|| general_endpoint.clone())
-            .unwrap_or_else(|| "http://localhost:4317".to_string());
+            .unwrap_or_else(|| "http://localhost:4318".to_string())
+            // Remove /v1/traces suffix if present (HTTP exporter appends it automatically)
+            .trim_end_matches("/v1/traces")
+            .trim_end_matches('/')
+            .to_string();
 
         // Build the OTLP exporter
         let exporter = opentelemetry_otlp::new_exporter()
@@ -101,7 +105,7 @@ pub fn init_telemetry() -> Result<(), Box<dyn std::error::Error>> {
             .map_err(|e| format!("Failed to initialize tracing with OpenTelemetry: {}", e))?;
 
         info!("OpenTelemetry tracing initialized successfully");
-        info!("Trace endpoint: {}", trace_endpoint);
+        info!("Trace endpoint: {}/v1/traces", trace_endpoint);
     } else {
         warn!("OTEL_EXPORTER_OTLP_ENDPOINT not set, falling back to basic tracing");
         let stdout_layer = tracing_subscriber::fmt::layer()
