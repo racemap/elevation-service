@@ -18,7 +18,7 @@ opentelemetry-otlp = { version = "0.14", features = [
 opentelemetry-semantic-conventions = "0.13"
 opentelemetry-stdout = { version = "0.2", features = ["trace"] }
 opentelemetry_sdk = { version = "0.21", features = ["rt-tokio"] }
-rand = "0.9.1"
+rand = "0.9.3"
 reqwest = { version = "0.12.20", features = ["json", "gzip"] }
 rust-s3 = { version = "0.35.1", default-features = false, features = [
     "tokio-rustls-tls",
