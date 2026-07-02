@@ -5,6 +5,10 @@ services:
       context: .
       dockerfile: Dockerfile
     restart: unless-stopped
+    # Run an init (tini) as PID 1 so it reaps the short-lived bash processes
+    # the HEALTHCHECK spawns every interval; the elevation binary itself does
+    # not reap children, so without this they accumulate as <defunct> zombies.
+    init: true
     mem_limit: ${MEMORY_LIMIT:-2G}
     environment:
       VIRTUAL_HOST: ${DOMAIN}
@@ -27,6 +31,8 @@ services:
       S3_REGION: ${S3_REGION:-}
     expose:
       - '3000'
+    profiles:
+      - production
 
   nginx-proxy:
     image: nginxproxy/nginx-proxy:1.7.1

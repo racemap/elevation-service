@@ -25,5 +25,6 @@ USER appuser
 
 EXPOSE 3000
 
-HEALTHCHECK CMD bash -c 'exec 3<>/dev/tcp/localhost/3000 && echo -e "GET /status HTTP/1.1\r\nHost: localhost:3000\r\nConnection: close\r\n\r\n" >&3 && grep -q "HTTP/1.1 200 OK" <&3'
+HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
+    CMD bash -c 'exec 3<>/dev/tcp/localhost/3000 && echo -e "GET /status HTTP/1.1\r\nHost: localhost:3000\r\nConnection: close\r\n\r\n" >&3 && grep -q "HTTP/1.1 200 OK" <&3'
 ENTRYPOINT [ "elevation-service" ]
