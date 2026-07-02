@@ -6,8 +6,6 @@ services:
       dockerfile: Dockerfile
     restart: unless-stopped
     mem_limit: ${MEMORY_LIMIT:-2G}
-    depends_on:
-      - nginx-proxy
     environment:
       VIRTUAL_HOST: ${DOMAIN}
       VIRTUAL_PORT: 3000
