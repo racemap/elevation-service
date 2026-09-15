@@ -5,6 +5,7 @@ use std::{
         Arc,
         atomic::{AtomicU32, Ordering},
     },
+    time::Duration,
 };
 use tokio::sync::Semaphore;
 use tracing::{error, info, instrument, warn};
@@ -23,27 +24,42 @@ impl warp::reject::Reject for InternalError {}
 
 /// Tracks how the tile backend has been behaving across `/status` calls.
 ///
-/// The old check sampled a uniformly random coordinate, which is a guaranteed
-/// cache miss against ~64,800 possible tiles, so every poll was a live S3 round
-/// trip and inherited the bucket's ~1-2% transient error rate. Probing a fixed
-/// coordinate keeps that tile warm in the cache, and requiring several
-/// consecutive failures before reporting 500 means a real outage is
-/// distinguishable from one unlucky request.
+/// The old check sampled a uniformly random coordinate and downloaded the whole
+/// ~25 MB tile, so every poll was an expensive live round trip that inherited
+/// the bucket's ~1-2% transient error rate and turned it straight into a 500.
+///
+/// Two changes make the signal trustworthy without making it deaf:
+///
+/// - The probe is a **HEAD against a fixed, known key**, issued live on every
+///   poll and deliberately bypassing the tile cache. It still detects object
+///   storage being down, unreachable, or misconfigured, but costs no bandwidth.
+///   A fixed key also means a 404 is meaningful (the bucket or prefix is
+///   wrong), where a random coordinate could legitimately miss.
+/// - A single failure is not fatal. Reporting 500 only after
+///   `failure_threshold` consecutive failures separates a real outage from the
+///   transient errors object storage produces as a matter of course.
 #[derive(Debug)]
 pub struct StatusState {
     consecutive_failures: AtomicU32,
     failure_threshold: u32,
     probe_lat: f64,
     probe_lng: f64,
+    probe_timeout: Duration,
 }
 
 impl StatusState {
-    pub fn new(probe_lat: f64, probe_lng: f64, failure_threshold: u32) -> Self {
+    pub fn new(
+        probe_lat: f64,
+        probe_lng: f64,
+        failure_threshold: u32,
+        probe_timeout: Duration,
+    ) -> Self {
         Self {
             consecutive_failures: AtomicU32::new(0),
             failure_threshold: failure_threshold.max(1),
             probe_lat,
             probe_lng,
+            probe_timeout,
         }
     }
 
@@ -79,10 +95,21 @@ pub async fn get_status(
     })?;
 
     info!("Status check requested");
-    match tileset
-        .get_elevation(state.probe_lat, state.probe_lng)
-        .await
-    {
+
+    // Bounded, so a hanging backend cannot hang the health check itself.
+    let probe = tileset.probe_backend(state.probe_lat, state.probe_lng);
+    let outcome = match tokio::time::timeout(state.probe_timeout, probe).await {
+        Ok(result) => result,
+        Err(_) => Err(Error::new(
+            ErrorKind::TimedOut,
+            format!(
+                "tile backend probe timed out after {}ms",
+                state.probe_timeout.as_millis()
+            ),
+        )),
+    };
+
+    match outcome {
         Ok(_) => {
             let recovered_from = state.record_success();
             if recovered_from > 0 {
@@ -258,20 +285,33 @@ mod tests {
     const MISSING_LAT: f64 = 10.5;
     const MISSING_LNG: f64 = 20.5;
 
-    fn tileset() -> Arc<TileSetWithCache> {
+    fn state(probe_lat: f64, probe_lng: f64, threshold: u32) -> Arc<StatusState> {
+        Arc::new(StatusState::new(
+            probe_lat,
+            probe_lng,
+            threshold,
+            Duration::from_secs(5),
+        ))
+    }
+
+    fn tileset_at(path: &str) -> Arc<TileSetWithCache> {
         Arc::new(
             TileSetWithCache::new(TileSetOptions {
-                path: String::from("test_files"),
+                path: String::from(path),
                 ..Default::default()
             })
             .unwrap(),
         )
     }
 
-    fn status_filter(
+    fn tileset() -> Arc<TileSetWithCache> {
+        tileset_at("test_files")
+    }
+
+    fn status_filter_with(
+        tileset: Arc<TileSetWithCache>,
         state: Arc<StatusState>,
     ) -> impl Filter<Extract = impl Reply, Error = Rejection> + Clone {
-        let tileset = tileset();
         let semaphore = Arc::new(Semaphore::new(8));
         warp::path("status")
             .and(warp::get())
@@ -281,19 +321,26 @@ mod tests {
             .and_then(get_status)
     }
 
-    async fn call_status(state: Arc<StatusState>) -> (StatusCode, Value) {
+    async fn call_status_on(
+        tileset: Arc<TileSetWithCache>,
+        state: Arc<StatusState>,
+    ) -> (StatusCode, Value) {
         let response = warp::test::request()
             .path("/status")
-            .reply(&status_filter(state))
+            .reply(&status_filter_with(tileset, state))
             .await;
         let code = response.status();
         let body: Value = serde_json::from_slice(response.body()).expect("status body is JSON");
         (code, body)
     }
 
+    async fn call_status(state: Arc<StatusState>) -> (StatusCode, Value) {
+        call_status_on(tileset(), state).await
+    }
+
     #[tokio::test]
     async fn status_is_ok_when_the_probe_tile_resolves() {
-        let state = Arc::new(StatusState::new(PRESENT_LAT, PRESENT_LNG, 3));
+        let state = state(PRESENT_LAT, PRESENT_LNG, 3);
         let (code, body) = call_status(state).await;
 
         assert_eq!(code, StatusCode::OK);
@@ -307,7 +354,7 @@ mod tests {
     async fn a_single_probe_failure_is_degraded_not_down() {
         // The whole point of the fix: one transient object-storage blip must
         // not turn into an uptime incident.
-        let state = Arc::new(StatusState::new(MISSING_LAT, MISSING_LNG, 3));
+        let state = state(MISSING_LAT, MISSING_LNG, 3);
         let (code, body) = call_status(state).await;
 
         assert_eq!(code, StatusCode::OK);
@@ -323,7 +370,7 @@ mod tests {
 
     #[tokio::test]
     async fn sustained_probe_failures_report_unhealthy() {
-        let state = Arc::new(StatusState::new(MISSING_LAT, MISSING_LNG, 3));
+        let state = state(MISSING_LAT, MISSING_LNG, 3);
 
         for expected in 1..3 {
             let (code, body) = call_status(state.clone()).await;
@@ -344,7 +391,7 @@ mod tests {
 
     #[tokio::test]
     async fn a_threshold_of_one_fails_immediately() {
-        let state = Arc::new(StatusState::new(MISSING_LAT, MISSING_LNG, 1));
+        let state = state(MISSING_LAT, MISSING_LNG, 1);
         let (code, body) = call_status(state).await;
 
         assert_eq!(code, StatusCode::INTERNAL_SERVER_ERROR);
@@ -353,14 +400,14 @@ mod tests {
 
     #[tokio::test]
     async fn a_threshold_of_zero_is_clamped_to_one() {
-        let state = Arc::new(StatusState::new(MISSING_LAT, MISSING_LNG, 0));
+        let state = state(MISSING_LAT, MISSING_LNG, 0);
         let (code, _) = call_status(state).await;
         assert_eq!(code, StatusCode::INTERNAL_SERVER_ERROR);
     }
 
     #[tokio::test]
     async fn a_success_clears_accumulated_failures() {
-        let state = Arc::new(StatusState::new(PRESENT_LAT, PRESENT_LNG, 3));
+        let state = state(PRESENT_LAT, PRESENT_LNG, 3);
         assert_eq!(state.record_failure(), 1);
         assert_eq!(state.record_failure(), 2);
 
@@ -373,15 +420,70 @@ mod tests {
     }
 
     #[tokio::test]
-    async fn status_probes_a_fixed_coordinate_so_the_tile_stays_cached() {
-        // Repeated checks must resolve the same tile; a random coordinate is
-        // what made every poll a live object-storage fetch.
-        let state = Arc::new(StatusState::new(PRESENT_LAT, PRESENT_LNG, 3));
+    async fn status_probes_the_same_key_on_every_poll() {
+        let state = state(PRESENT_LAT, PRESENT_LNG, 3);
         for _ in 0..5 {
             let (code, body) = call_status(state.clone()).await;
             assert_eq!(code, StatusCode::OK);
             assert_eq!(body["status"], "ok");
         }
+    }
+
+    /// Regression test for the flaw @normanrz caught in review: if the probe
+    /// went through the tile cache, `/status` would answer `ok` from memory
+    /// forever once warmed, and a completely dead backend would go unnoticed.
+    ///
+    /// Warm the cache, then take the backend away, and the status check must
+    /// still notice.
+    #[tokio::test]
+    async fn status_detects_a_dead_backend_even_after_the_tile_is_cached() {
+        let dir = std::env::temp_dir().join(format!(
+            "elevation-probe-test-{}-{:?}",
+            std::process::id(),
+            std::thread::current().id()
+        ));
+        let tile_dir = dir.join("N45");
+        std::fs::create_dir_all(&tile_dir).unwrap();
+        let tile = tile_dir.join("N45E009.hgt.gz");
+        std::fs::copy("test_files/N45/N45E009.hgt.gz", &tile).unwrap();
+
+        let tileset = tileset_at(dir.to_str().unwrap());
+
+        // Warm the cache the way real traffic would.
+        assert!(
+            tileset
+                .get_elevation(PRESENT_LAT, PRESENT_LNG)
+                .await
+                .is_ok(),
+            "fixture should resolve before the backend is removed"
+        );
+        let state = state(PRESENT_LAT, PRESENT_LNG, 1);
+        let (code, body) = call_status_on(tileset.clone(), state.clone()).await;
+        assert_eq!(code, StatusCode::OK);
+        assert_eq!(body["status"], "ok");
+
+        // Now the backend goes away. The tile is still cached, so
+        // `get_elevation` keeps succeeding -- which is precisely why the probe
+        // must not use it.
+        std::fs::remove_file(&tile).unwrap();
+        assert!(
+            tileset
+                .get_elevation(PRESENT_LAT, PRESENT_LNG)
+                .await
+                .is_ok(),
+            "the cached tile should still serve, proving the cache is warm"
+        );
+
+        let (code, body) = call_status_on(tileset, state).await;
+        assert_eq!(
+            code,
+            StatusCode::INTERNAL_SERVER_ERROR,
+            "a dead backend must be reported even with a warm cache: {}",
+            body
+        );
+        assert_eq!(body["status"], "unhealthy");
+
+        std::fs::remove_dir_all(&dir).ok();
     }
 
     #[tokio::test]

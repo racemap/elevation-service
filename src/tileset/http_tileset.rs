@@ -30,17 +30,45 @@ impl HTTPTileSet {
         }
     }
 
-    #[instrument(level="debug", name="get_tile_http", skip_all, fields(coord = format!("{},{}", lat, lng)))]
-    pub async fn get_tile(&self, lat: f64, lng: f64) -> Result<Vec<u8>, TileError> {
-        let file_path = format!(
+    fn url_for(&self, lat: f64, lng: f64) -> Result<String, TileError> {
+        Ok(format!(
             "{}/{}",
             self.base_url,
             TileSetWithCache::get_file_path(lat, lng)
                 .map_err(|e| TileError::decode(format!("{},{}", lat, lng), e))?
-        );
-        debug!("Fetching tile from: {}", file_path);
+        ))
+    }
 
-        with_retry(self.retry_policy(), &file_path, || self.fetch(&file_path)).await
+    #[instrument(level="debug", name="get_tile_http", skip_all, fields(coord = format!("{},{}", lat, lng)))]
+    pub async fn get_tile(&self, lat: f64, lng: f64) -> Result<Vec<u8>, TileError> {
+        let url = self.url_for(lat, lng)?;
+        debug!("Fetching tile from: {}", url);
+
+        with_retry(self.retry_policy(), &url, || self.fetch(&url)).await
+    }
+
+    /// Reachability probe for `/status` — see `S3TileSet::probe`. Never cached.
+    #[instrument(level="debug", name="probe_http", skip_all, fields(coord = format!("{},{}", lat, lng)))]
+    pub async fn probe(&self, lat: f64, lng: f64) -> Result<(), TileError> {
+        let url = self.url_for(lat, lng)?;
+        debug!("Probing: HEAD {}", url);
+
+        with_retry(self.retry_policy(), &url, || self.head(&url)).await
+    }
+
+    async fn head(&self, url: &str) -> Result<(), TileError> {
+        let response = self
+            .client
+            .head(url)
+            .send()
+            .await
+            .map_err(|e| TileError::transport(url, e))?;
+
+        let status = response.status();
+        if !status.is_success() {
+            return Err(TileError::upstream(url, status.as_u16(), "(HEAD, no body)"));
+        }
+        Ok(())
     }
 
     async fn fetch(&self, url: &str) -> Result<Vec<u8>, TileError> {

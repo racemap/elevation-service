@@ -19,11 +19,32 @@ impl FileTileSet {
         }
     }
 
-    #[instrument(level="debug", name = "get_tile_file", skip_all, fields(coord = format!("{},{}", lat, lng)))]
-    pub async fn get_tile(&self, lat: f64, lng: f64) -> Result<Vec<u8>, TileError> {
+    fn path_for(&self, lat: f64, lng: f64) -> Result<PathBuf, TileError> {
         let tile_path = TileSetWithCache::get_file_path(lat, lng)
             .map_err(|e| TileError::decode(format!("{},{}", lat, lng), e))?;
-        let file_path = self.folder.join(tile_path);
+        Ok(self.folder.join(tile_path))
+    }
+
+    /// Reachability probe for `/status` — see `S3TileSet::probe`. Never cached.
+    #[instrument(level="debug", name = "probe_file", skip_all, fields(coord = format!("{},{}", lat, lng)))]
+    pub async fn probe(&self, lat: f64, lng: f64) -> Result<(), TileError> {
+        let file_path = self.path_for(lat, lng)?;
+        let key = file_path.display().to_string();
+        debug!("Probing: stat {:?}", file_path);
+
+        fs::metadata(file_path.as_path()).await.map_err(|e| {
+            if e.kind() == ErrorKind::NotFound {
+                TileError::not_found(&key, "no such file")
+            } else {
+                TileError::transport(&key, e)
+            }
+        })?;
+        Ok(())
+    }
+
+    #[instrument(level="debug", name = "get_tile_file", skip_all, fields(coord = format!("{},{}", lat, lng)))]
+    pub async fn get_tile(&self, lat: f64, lng: f64) -> Result<Vec<u8>, TileError> {
+        let file_path = self.path_for(lat, lng)?;
         let key = file_path.display().to_string();
         debug!("Fetching tile from: {:?}", file_path);
 

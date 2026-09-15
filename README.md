@@ -41,7 +41,7 @@ upstream.
 
 ### `GET /status` — readiness
 
-Fetches the elevation for a fixed probe coordinate and reports the result as
+Issues a live `HEAD` against a fixed, known tile key and reports the result as
 JSON:
 
 ```bash
@@ -55,11 +55,17 @@ curl http://localhost:3000/status
 | `degraded` | 200 | A probe failed, but not often enough in a row to call the service down. The body carries `error` with the reason. |
 | `unhealthy` | 500 | `STATUS_FAILURE_THRESHOLD` consecutive probes failed. |
 
-Two details matter for the reliability of this signal:
+Three details matter for the reliability of this signal:
 
-- The probe coordinate is **fixed**, not random, so the tile stays warm in the
-  cache and a routine check does not make a live object-storage request.
-- A single failure yields `degraded` with HTTP 200. Object storage has a
+- **The probe always goes to the backend.** It deliberately bypasses the tile
+  cache — a cached probe would answer `ok` from memory forever once warmed, and
+  a completely dead object store would go unnoticed. It is a `HEAD`, not a tile
+  download, so it exercises DNS, TLS, credentials, the bucket and the key while
+  transferring no body.
+- **The key is fixed, not random.** A random coordinate can legitimately miss,
+  which makes a 404 meaningless; against a known key a 404 tells you the bucket
+  or prefix is wrong.
+- **A single failure yields `degraded` with HTTP 200.** Object storage has a
   transient error rate of a percent or so; alerting on one bad sample means
   alerting on noise. Point your uptime monitor at `/status` and let the
   threshold decide, or parse `status` from the body if you want to alert on
@@ -185,6 +191,7 @@ The following environment variables are supported for configuration:
 - `STATUS_PROBE_LAT`: Latitude probed by `/status` (default: 45.5)
 - `STATUS_PROBE_LNG`: Longitude probed by `/status` (default: 9.5)
 - `STATUS_FAILURE_THRESHOLD`: Consecutive probe failures before `/status` returns 500 (default: 3)
+- `STATUS_PROBE_TIMEOUT_MS`: Ceiling on a single probe, so a hanging backend cannot hang the health check (default: 3000)
 
 The default probe coordinate resolves to `N45/N45E009`, which exists both in
 the repository's test fixtures and in the public skadi tile set. Point it at

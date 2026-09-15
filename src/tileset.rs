@@ -118,6 +118,29 @@ impl TileSetWithCache {
         ))
     }
 
+    /// Checks that the tile backend is actually reachable, **bypassing the HGT
+    /// cache entirely**.
+    ///
+    /// This is what `/status` calls, and the cache bypass is the whole point.
+    /// Probing through `get_elevation` would answer from memory after the first
+    /// call and report a healthy backend indefinitely while object storage was
+    /// down — the health check would be measuring nothing at all.
+    ///
+    /// The probe is a HEAD (or a `stat` for local tiles), so exercising the
+    /// backend on every poll costs no meaningful bandwidth.
+    #[instrument(level = "debug", skip_all, fields(coord = format!("{},{}", lat, lng)))]
+    pub async fn probe_backend(&self, lat: f64, lng: f64) -> Result<(), tokio::io::Error> {
+        TileSetWithCache::validate_coordinates(lat, lng)?;
+
+        let result = match &self.tileset {
+            TileSet::File(tileset) => tileset.probe(lat, lng).await,
+            TileSet::HTTP(tileset) => tileset.probe(lat, lng).await,
+            TileSet::S3(tileset) => tileset.probe(lat, lng).await,
+        };
+
+        result.map_err(|e| tokio::io::Error::new(e.error_kind(), e.to_string()))
+    }
+
     #[instrument(level = "debug", skip_all, fields(coord = format!("{},{}", lat, lng)))]
     pub async fn get_elevation(&self, lat: f64, lng: f64) -> Result<i16, tokio::io::Error> {
         TileSetWithCache::validate_coordinates(lat, lng)?;

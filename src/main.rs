@@ -74,6 +74,7 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
         "Status Failure Threshold: {}",
         config.status_failure_threshold
     );
+    debug!("Status Probe Timeout: {}ms", config.status_probe_timeout_ms);
     debug!(
         "Tile Fetch Max Attempts: {}",
         config.tile_fetch_max_attempts
@@ -103,6 +104,7 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
         config.status_probe_lat,
         config.status_probe_lng,
         config.status_failure_threshold,
+        Duration::from_millis(config.status_probe_timeout_ms),
     ));
 
     // Create a shared filter for tileset

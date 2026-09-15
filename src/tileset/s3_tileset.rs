@@ -82,19 +82,52 @@ impl S3TileSet {
         })
     }
 
-    #[instrument(level="debug", name="get_tile_s3", skip_all, fields(coord = format!("{},{}", lat, lng)))]
-    pub async fn get_tile(&self, lat: f64, lng: f64) -> Result<Vec<u8>, TileError> {
+    fn key_for(&self, lat: f64, lng: f64) -> Result<String, TileError> {
         let file_path = TileSetWithCache::get_file_path(lat, lng)
             .map_err(|e| TileError::decode(format!("{},{}", lat, lng), e))?;
-        let key = if self.key_prefix.is_empty() {
+        Ok(if self.key_prefix.is_empty() {
             file_path
         } else {
             format!("{}/{}", self.key_prefix, file_path)
-        };
+        })
+    }
+
+    #[instrument(level="debug", name="get_tile_s3", skip_all, fields(coord = format!("{},{}", lat, lng)))]
+    pub async fn get_tile(&self, lat: f64, lng: f64) -> Result<Vec<u8>, TileError> {
+        let key = self.key_for(lat, lng)?;
 
         debug!("Fetching tile from S3: s3://{}/{}", self.bucket.name, key);
 
         with_retry(self.retry_policy, &key, || self.fetch(&key)).await
+    }
+
+    /// Reachability probe for `/status`: a HEAD against a known key.
+    ///
+    /// This must never be served from a cache. It is the only thing standing
+    /// between us and a health check that reports `ok` while object storage is
+    /// down. A HEAD costs no meaningful bandwidth (no body, versus ~25 MB for
+    /// the tile itself), so it is cheap enough to run on every poll while still
+    /// exercising DNS, TLS, credentials, the bucket and the key.
+    #[instrument(level="debug", name="probe_s3", skip_all, fields(coord = format!("{},{}", lat, lng)))]
+    pub async fn probe(&self, lat: f64, lng: f64) -> Result<(), TileError> {
+        let key = self.key_for(lat, lng)?;
+
+        debug!("Probing S3: HEAD s3://{}/{}", self.bucket.name, key);
+
+        with_retry(self.retry_policy, &key, || self.head(&key)).await
+    }
+
+    async fn head(&self, key: &str) -> Result<(), TileError> {
+        let (_, status) = self
+            .bucket
+            .head_object(key)
+            .await
+            .map_err(|e| TileError::transport(key, e))?;
+
+        if !(200..300).contains(&status) {
+            return Err(TileError::upstream(key, status, "(HEAD, no body)"));
+        }
+        Ok(())
     }
 
     async fn fetch(&self, key: &str) -> Result<Vec<u8>, TileError> {
