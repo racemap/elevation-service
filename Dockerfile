@@ -25,6 +25,9 @@ USER appuser
 
 EXPOSE 3000
 
+# Probes /health, not /status: container health is about this process being up
+# and serving. /status additionally checks the tile backend, and restarting the
+# container would not fix a degraded object store.
 HEALTHCHECK --interval=30s --timeout=5s --start-period=15s --retries=3 \
-    CMD bash -c 'exec 3<>/dev/tcp/localhost/3000 && echo -e "GET /status HTTP/1.1\r\nHost: localhost:3000\r\nConnection: close\r\n\r\n" >&3 && grep -q "HTTP/1.1 200 OK" <&3'
+    CMD bash -c 'exec 3<>/dev/tcp/localhost/3000 && echo -e "GET /health HTTP/1.1\r\nHost: localhost:3000\r\nConnection: close\r\n\r\n" >&3 && grep -q "HTTP/1.1 200 OK" <&3'
 ENTRYPOINT [ "elevation-service" ]

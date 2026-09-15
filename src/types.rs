@@ -26,3 +26,18 @@ impl IntoIterator for LatLngs {
 pub struct ElevationResponse {
     pub elevations: Vec<i16>,
 }
+
+/// Body of `/status`.
+///
+/// `status` is `ok` while the tile backend answers, `degraded` after a probe
+/// failure that has not yet reached the threshold (still served as HTTP 200, so
+/// a single transient object-storage blip does not page anyone), and
+/// `unhealthy` once failures have been sustained (HTTP 500).
+#[derive(Serialize, Debug, PartialEq)]
+pub struct StatusResponse {
+    pub status: &'static str,
+    pub tileset: &'static str,
+    pub consecutive_failures: u32,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    pub error: Option<String>,
+}
