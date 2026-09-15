@@ -21,6 +21,18 @@ pub struct Config {
     pub s3_access_key_id: Option<String>,
     pub s3_secret_access_key: Option<String>,
     pub s3_region: Option<String>,
+    /// Coordinate probed by `/status`. Fixed rather than random, so the tile
+    /// stays warm in the cache and the check does not hit object storage on
+    /// every poll.
+    pub status_probe_lat: f64,
+    pub status_probe_lng: f64,
+    /// Consecutive probe failures before `/status` reports 500. Below this the
+    /// endpoint answers 200 with `"status": "degraded"`.
+    pub status_failure_threshold: u32,
+    /// Attempts per remote tile fetch, including the first.
+    pub tile_fetch_max_attempts: u32,
+    /// Delay before the first retry, doubling for each further attempt.
+    pub tile_fetch_retry_base_ms: u64,
 }
 
 // Initialize dotenv and config only once
@@ -53,6 +65,14 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
             .or_else(|| get_non_empty_env_var("AWS_SECRET_ACCESS_KEY")),
         s3_region: get_non_empty_env_var("S3_REGION")
             .or_else(|| get_non_empty_env_var("AWS_REGION")),
+        // Defaults to the tile shipped in `test_files` (N45E009), which is also
+        // real land in the public skadi set, so the check works out of the box
+        // both locally and in production.
+        status_probe_lat: parse_env_var::<f64>("STATUS_PROBE_LAT").unwrap_or(45.5),
+        status_probe_lng: parse_env_var::<f64>("STATUS_PROBE_LNG").unwrap_or(9.5),
+        status_failure_threshold: parse_env_var::<u32>("STATUS_FAILURE_THRESHOLD").unwrap_or(3),
+        tile_fetch_max_attempts: parse_env_var::<u32>("TILE_FETCH_MAX_ATTEMPTS").unwrap_or(3),
+        tile_fetch_retry_base_ms: parse_env_var::<u64>("TILE_FETCH_RETRY_BASE_MS").unwrap_or(100),
     }
 });
 

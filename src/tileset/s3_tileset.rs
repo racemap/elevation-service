@@ -1,4 +1,6 @@
-use crate::tileset::TileSetWithCache;
+use crate::tileset::error::TileError;
+use crate::tileset::retry::{RetryPolicy, with_retry};
+use crate::tileset::{TileSetOptions, TileSetWithCache};
 use flate2::read::GzDecoder;
 use s3::{Bucket, Region, creds::Credentials};
 use std::io::Read;
@@ -8,18 +10,26 @@ pub struct S3TileSet {
     bucket: Box<Bucket>,
     key_prefix: String,
     gzip: bool,
+    retry_policy: RetryPolicy,
 }
 
 impl S3TileSet {
     pub fn new(
         bucket_name: String,
         key_prefix: String,
-        gzip: bool,
-        access_key_id: Option<String>,
-        secret_access_key: Option<String>,
-        region: Option<String>,
-        endpoint: Option<String>,
+        options: TileSetOptions,
     ) -> Result<Self, Box<dyn std::error::Error>> {
+        let TileSetOptions {
+            gzip,
+            s3_access_key_id: access_key_id,
+            s3_secret_access_key: secret_access_key,
+            s3_region: region,
+            s3_endpoint: endpoint,
+            max_fetch_attempts,
+            retry_base_delay,
+            ..
+        } = options;
+
         // Set up credentials
         let credentials =
             if let (Some(access_key), Some(secret_key)) = (access_key_id, secret_access_key) {
@@ -65,16 +75,17 @@ impl S3TileSet {
             bucket,
             key_prefix,
             gzip,
+            retry_policy: RetryPolicy {
+                max_attempts: max_fetch_attempts,
+                base_delay: retry_base_delay,
+            },
         })
     }
 
     #[instrument(level="debug", name="get_tile_s3", skip_all, fields(coord = format!("{},{}", lat, lng)))]
-    pub async fn get_tile(
-        &self,
-        lat: f64,
-        lng: f64,
-    ) -> Result<Vec<u8>, Box<dyn std::error::Error>> {
-        let file_path = TileSetWithCache::get_file_path(lat, lng)?;
+    pub async fn get_tile(&self, lat: f64, lng: f64) -> Result<Vec<u8>, TileError> {
+        let file_path = TileSetWithCache::get_file_path(lat, lng)
+            .map_err(|e| TileError::decode(format!("{},{}", lat, lng), e))?;
         let key = if self.key_prefix.is_empty() {
             file_path
         } else {
@@ -83,14 +94,38 @@ impl S3TileSet {
 
         debug!("Fetching tile from S3: s3://{}/{}", self.bucket.name, key);
 
-        let response = self.bucket.get_object(&key).await?;
+        with_retry(self.retry_policy, &key, || self.fetch(&key)).await
+    }
+
+    async fn fetch(&self, key: &str) -> Result<Vec<u8>, TileError> {
+        let response = self
+            .bucket
+            .get_object(key)
+            .await
+            .map_err(|e| TileError::transport(key, e))?;
+
+        // `rust-s3` is built without the `fail-on-err` feature, so `get_object`
+        // resolves to `Ok` for any HTTP status and hands back the error body.
+        // Without this check a 404 or a transient 5xx reaches the gzip decoder
+        // and is misreported as `invalid gzip header`.
+        let status = response.status_code();
+        if !(200..300).contains(&status) {
+            return Err(TileError::upstream(
+                key,
+                status,
+                response.as_str().unwrap_or(""),
+            ));
+        }
+
         let bytes = response.bytes().to_vec();
 
         // Handle gzip decompression if needed
         if self.gzip {
             let mut decoder = GzDecoder::new(&bytes[..]);
             let mut decompressed = Vec::new();
-            decoder.read_to_end(&mut decompressed)?;
+            decoder
+                .read_to_end(&mut decompressed)
+                .map_err(|e| TileError::decode(key, e))?;
             Ok(decompressed)
         } else {
             Ok(bytes)
