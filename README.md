@@ -32,6 +32,18 @@ There are two separate checks, because "this process is up" and "the tile
 backend is reachable" are different questions and conflating them produces
 false alarms.
 
+The two are independent: `/status` never depends on `/health`. When object
+storage is down, the expected result is `/health` → `200 Ok` together with
+`/status` → `500 unhealthy`. The process is fine, so the container should not
+be restarted, but the backend is unreachable, so you should be alerted.
+
+| `/health` | `/status` | Meaning |
+| --- | --- | --- |
+| 200 | 200 `ok` | Everything is working. |
+| 200 | 200 `degraded` | Process is up; the tile backend had a recent transient failure. |
+| 200 | 500 `unhealthy` | Process is up, but the tile backend is unreachable. Alert; do not restart. |
+| fails | fails | The process itself is down or not serving. Restart. |
+
 ### `GET /health` — liveness
 
 Answers `200 Ok` whenever the process is up and serving. It touches nothing
