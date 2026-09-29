@@ -1,12 +1,14 @@
 use crate::{
     config::get_uri_from_config,
-    handlers::{get_elevation, get_status, handle_options, post_elevations},
+    handlers::{
+        StatusState, get_elevation, get_health, get_status, handle_options, post_elevations,
+    },
     telemetry::init_telemetry,
     tileset::{TileSetOptions, TileSetWithCache},
     types::{LatLng, LatLngs},
 };
 use opentelemetry::global;
-use std::sync::Arc;
+use std::{sync::Arc, time::Duration};
 use tokio::sync::Semaphore;
 use tracing::{debug, info};
 use warp::Filter;
@@ -64,6 +66,23 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
     );
     debug!("S3 Endpoint: {:?}", config.s3_endpoint);
     debug!("S3 Bucket: {:?}", config.s3_bucket);
+    debug!(
+        "Status Probe Coordinate: {},{}",
+        config.status_probe_lat, config.status_probe_lng
+    );
+    debug!(
+        "Status Failure Threshold: {}",
+        config.status_failure_threshold
+    );
+    debug!("Status Probe Timeout: {}ms", config.status_probe_timeout_ms);
+    debug!(
+        "Tile Fetch Max Attempts: {}",
+        config.tile_fetch_max_attempts
+    );
+    debug!(
+        "Tile Fetch Retry Base Delay: {}ms",
+        config.tile_fetch_retry_base_ms
+    );
 
     // Create semaphore for limiting concurrent handlers
     let semaphore = Arc::new(Semaphore::new(config.max_concurrent_handlers));
@@ -76,20 +95,37 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
         s3_secret_access_key: config.s3_secret_access_key.clone(),
         s3_region: config.s3_region.clone(),
         s3_endpoint: config.s3_endpoint.clone(),
+        max_fetch_attempts: config.tile_fetch_max_attempts,
+        retry_base_delay: Duration::from_millis(config.tile_fetch_retry_base_ms),
     };
     let tileset = Arc::new(TileSetWithCache::new(options)?);
+
+    let status_state = Arc::new(StatusState::new(
+        config.status_probe_lat,
+        config.status_probe_lng,
+        config.status_failure_threshold,
+        Duration::from_millis(config.status_probe_timeout_ms),
+    ));
 
     // Create a shared filter for tileset
     let tileset_filter = warp::any().map(move || tileset.clone());
     let config_filter = warp::any().map(move || config.clone());
     let semaphore_filter = warp::any().map(move || semaphore.clone());
+    let status_state_filter = warp::any().map(move || status_state.clone());
 
-    // Define the /status route
+    // Define the /status route (readiness: process plus tile backend)
     let status_route = warp::path("status")
         .and(warp::get())
         .and(tileset_filter.clone())
+        .and(status_state_filter.clone())
         .and(semaphore_filter.clone())
         .and_then(get_status);
+
+    // Define the /health route (liveness only, no object storage involved)
+    let health_route = warp::path("health")
+        .and(warp::get())
+        .and(warp::path::end())
+        .and_then(get_health);
 
     // Define the GET route for elevation
     let get_elevation_route = warp::path::end()
@@ -138,6 +174,7 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
     let routes = warp::any()
         .and(
             status_route
+                .or(health_route)
                 .or(get_elevation_route)
                 .or(post_elevation_route)
                 .or(options_route),
