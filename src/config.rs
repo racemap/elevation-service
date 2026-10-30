@@ -1,14 +1,19 @@
 // src/config.rs
 
+use crate::tileset::DEFAULT_TILE_CACHE_BYTES;
 use byte_unit::Byte;
 use dotenvy::dotenv;
 use once_cell::sync::Lazy;
 use std::{env, net::Ipv4Addr};
+use tracing::warn;
 
 // Define the Config struct
 #[derive(Clone, Debug)]
 pub struct Config {
+    /// Entry-count fallback for the deprecated `TILE_SET_CACHE` variable.
     pub cache_size: u64,
+    /// Memory budget for decoded tiles. `None` means `cache_size` entries.
+    pub cache_budget_bytes: Option<u64>,
     pub tile_set_path: String,
     pub max_post_size: Byte,
     pub max_parallel_processing: usize,
@@ -42,8 +47,32 @@ pub struct Config {
 pub static CONFIG: Lazy<Config> = Lazy::new(|| {
     dotenv().ok(); // Loads .env (only the first time it's called)
 
+    let (cache_size, cache_budget_bytes) = match (
+        get_non_empty_env_var("TILE_CACHE_SIZE"),
+        get_non_empty_env_var("TILE_SET_CACHE"),
+    ) {
+        (Some(raw), _) => {
+            let bytes = Byte::parse_str(&raw, true)
+                .unwrap_or_else(|e| panic!("Invalid TILE_CACHE_SIZE {raw:?}: {e}"))
+                .as_u64();
+            (128, Some(bytes))
+        }
+        (None, Some(raw)) => {
+            let entries = raw
+                .parse::<u64>()
+                .unwrap_or_else(|e| panic!("Invalid TILE_SET_CACHE {raw:?}: {e}"));
+            warn!(
+                "TILE_SET_CACHE is deprecated and will be removed in a future release; \
+                 use TILE_CACHE_SIZE (e.g. 512mb) to bound the tile cache by memory"
+            );
+            (entries, None)
+        }
+        (None, None) => (128, Some(DEFAULT_TILE_CACHE_BYTES)),
+    };
+
     Config {
-        cache_size: parse_env_var::<u64>("TILE_SET_CACHE").unwrap_or(128),
+        cache_size,
+        cache_budget_bytes,
         tile_set_path: get_non_empty_env_var("TILE_SET_PATH").unwrap_or_else(|| {
             String::from(
                 env::current_dir()

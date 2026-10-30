@@ -15,10 +15,19 @@ mod http_tileset;
 mod retry;
 mod s3_tileset;
 
+/// Default memory budget for the decoded-tile cache. The two supported grids
+/// differ by 9× in size, so the cache is bounded in bytes rather than entries.
+pub const DEFAULT_TILE_CACHE_BYTES: u64 = 512 * 1024 * 1024;
+
 #[derive(Debug, Clone)]
 pub struct TileSetOptions {
     pub path: String,
+    /// Entry-count fallback used when `cache_budget_bytes` is `None`, kept for
+    /// the deprecated `TILE_SET_CACHE` variable.
     pub cache_size: u64,
+    /// Memory budget for cached decoded tiles. Takes precedence over
+    /// `cache_size`.
+    pub cache_budget_bytes: Option<u64>,
     pub gzip: bool,
     pub s3_access_key_id: Option<String>,
     pub s3_secret_access_key: Option<String>,
@@ -35,6 +44,7 @@ impl Default for TileSetOptions {
         Self {
             path: String::new(),
             cache_size: 128,
+            cache_budget_bytes: Some(DEFAULT_TILE_CACHE_BYTES),
             gzip: true,
             s3_access_key_id: None,
             s3_secret_access_key: None,
@@ -92,7 +102,17 @@ pub struct TileSetWithCache {
 impl TileSetWithCache {
     pub fn new(options: TileSetOptions) -> Result<Self, Box<dyn std::error::Error>> {
         let tileset = TileSet::new(options.clone())?;
-        let hgt_cache = Cache::new(options.cache_size);
+        let hgt_cache = match options.cache_budget_bytes {
+            Some(budget_bytes) => Cache::builder()
+                .max_capacity(budget_bytes)
+                .weigher(|_key, hgt: &Arc<HGT>| hgt.size_bytes())
+                .build(),
+            // Deprecated TILE_SET_CACHE fallback: one unit per tile.
+            None => Cache::builder()
+                .max_capacity(options.cache_size)
+                .weigher(|_key, _hgt: &Arc<HGT>| 1u32)
+                .build(),
+        };
         Ok(Self { tileset, hgt_cache })
     }
 
@@ -359,11 +379,36 @@ mod tests {
         assert_eq!(file_path.unwrap(), expected_path);
     }
 
+    #[tokio::test]
+    async fn test_cache_enforces_byte_budget() {
+        let tileset = TileSetWithCache::new(TileSetOptions {
+            path: String::from("test_files"),
+            cache_budget_bytes: Some(10),
+            ..Default::default()
+        })
+        .unwrap();
+
+        // Three 4-byte entries do not fit in a 10-byte budget.
+        for key in 0..3 {
+            tileset
+                .hgt_cache
+                .insert((key, 0), Arc::new(HGT::synthetic(4)))
+                .await;
+        }
+        tileset.hgt_cache.run_pending_tasks().await;
+
+        assert!(
+            tileset.hgt_cache.entry_count() <= 2,
+            "weigher must evict by bytes, not count"
+        );
+    }
+
     #[test]
     fn test_tile_set_options_default() {
         let options = TileSetOptions::default();
         assert_eq!(options.path, "");
         assert_eq!(options.cache_size, 128);
+        assert_eq!(options.cache_budget_bytes, Some(DEFAULT_TILE_CACHE_BYTES));
         assert!(options.gzip);
     }
 

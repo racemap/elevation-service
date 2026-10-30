@@ -9,12 +9,13 @@ services:
     # the HEALTHCHECK spawns every interval; the elevation binary itself does
     # not reap children, so without this they accumulate as <defunct> zombies.
     init: true
-    mem_limit: ${MEMORY_LIMIT:-2G}
+    mem_limit: ${MEMORY_LIMIT:-1G}
     environment:
       VIRTUAL_HOST: ${DOMAIN}
       VIRTUAL_PORT: 3000
       LETSENCRYPT_HOST: ${DOMAIN}
       LETSENCRYPT_EMAIL: ${EMAIL}
+      TILE_CACHE_SIZE: ${TILE_CACHE_SIZE:-512mb}
       TILE_SET_CACHE: ${TILE_SET_CACHE:-}
       TILE_SET_PATH: ${TILE_SET_PATH:-}
       MAX_POST_SIZE: ${MAX_POST_SIZE:-}
