@@ -64,12 +64,16 @@ impl HGT {
 
     #[instrument(skip_all, fields(row, col), level = "trace")]
     fn interpolation(&self, row: f64, col: f64) -> Result<i16, Error> {
+        // The sample on the tile's north/east edge is the last node in that
+        // direction; stepping one further would index past the buffer.
+        let last = (self.size - 1) as f64;
+
         let row_low = row.floor();
-        let row_high = row_low + 1.0;
+        let row_high = (row_low + 1.0).min(last);
         let row_frac = row - row_low;
 
         let col_low = col.floor();
-        let col_high = col_low + 1.0;
+        let col_high = (col_low + 1.0).min(last);
         let col_frac = col - col_low;
 
         let value_low_low = HGT::get_row_col_value(self, row_low, col_low)?;
@@ -148,6 +152,21 @@ mod tests {
         let elevation = hgt.get_elevation(0.5, 0.5);
         assert!(elevation.is_ok());
         assert_eq!(elevation.unwrap(), 0); // Default buffer values lead to elevation 0
+    }
+
+    #[test]
+    fn test_get_elevation_samples_last_node_on_tile_edge() {
+        let size = 3601; // 1 arcsecond
+        let last = size - 1;
+        let mut buffer = vec![0; 25934402];
+        // The north-east corner is the first row, last column of the file.
+        let offset = last * 2;
+        buffer[offset..offset + 2].copy_from_slice(&1234i16.to_be_bytes());
+
+        let hgt = HGT::new(buffer, (0.0, 0.0)).unwrap();
+        // Exactly (1.0, 1.0) is the tile's north-east corner: the nearest
+        // sample is the last node, not one index past the buffer.
+        assert_eq!(hgt.get_elevation(1.0, 1.0).unwrap(), 1234);
     }
 
     #[test]

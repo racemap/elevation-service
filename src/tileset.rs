@@ -106,8 +106,9 @@ impl TileSetWithCache {
     pub fn get_file_path(lat: f64, lng: f64) -> Result<String, std::io::Error> {
         TileSetWithCache::validate_coordinates(lat, lng)?;
 
-        let lat_floor = lat.floor() as i32;
-        let lng_floor = lng.floor() as i32;
+        let (lat_floor, lng_floor) = TileSetWithCache::tile_index(lat, lng);
+        let lat_floor = lat_floor as i32;
+        let lng_floor = lng_floor as i32;
         let lat_prefix = if lat_floor < 0 { "S" } else { "N" };
         let lng_prefix = if lng_floor < 0 { "W" } else { "E" };
         let lat_file_name = format!("{}{:02}", lat_prefix, lat_floor.abs());
@@ -116,6 +117,16 @@ impl TileSetWithCache {
             "{}/{}{}.hgt.gz",
             lat_file_name, lat_file_name, lng_file_name
         ))
+    }
+
+    /// Floors a coordinate to its tile index, clamped to the north-east tile.
+    ///
+    /// The dataset's last real tiles are `N89`/`E179`; `N90`/`E180` do not
+    /// exist, so a request on the pole or the antimeridian would otherwise look
+    /// up a tile that can never be found. The south-west corner needs no clamp:
+    /// `-90`/`-180` floor to `S90`/`W180`, which do exist.
+    fn tile_index(lat: f64, lng: f64) -> (f64, f64) {
+        (lat.floor().min(89.0), lng.floor().min(179.0))
     }
 
     /// Checks that the tile backend is actually reachable, **bypassing the HGT
@@ -145,8 +156,7 @@ impl TileSetWithCache {
     pub async fn get_elevation(&self, lat: f64, lng: f64) -> Result<i16, tokio::io::Error> {
         TileSetWithCache::validate_coordinates(lat, lng)?;
 
-        let lat_floor = lat.floor();
-        let lng_floor = lng.floor();
+        let (lat_floor, lng_floor) = TileSetWithCache::tile_index(lat, lng);
         let cache_key = (lat_floor as i32, lng_floor as i32);
 
         debug!(lat_floor, lng_floor, "Getting elevation for coordinates");
@@ -351,12 +361,53 @@ mod tests {
 
     #[test]
     fn test_get_file_path_large_coordinates() {
+        // N90/E180 do not exist; the pole and the antimeridian belong to the
+        // last real tile, N89/E179.
         let lat = 90.0;
         let lng = 180.0;
-        let expected_path = "N90/N90E180.hgt.gz";
+        let expected_path = "N89/N89E179.hgt.gz";
         let file_path = TileSetWithCache::get_file_path(lat, lng);
         assert!(file_path.is_ok());
         assert_eq!(file_path.unwrap(), expected_path);
+    }
+
+    #[test]
+    fn test_get_file_path_edges() {
+        assert_eq!(
+            TileSetWithCache::get_file_path(90.0, 0.0).unwrap(),
+            "N89/N89E000.hgt.gz"
+        );
+        assert_eq!(
+            TileSetWithCache::get_file_path(0.0, 180.0).unwrap(),
+            "N00/N00E179.hgt.gz"
+        );
+        // The south-west corner needs no clamp: S90/W180 are real tiles.
+        assert_eq!(
+            TileSetWithCache::get_file_path(-90.0, -180.0).unwrap(),
+            "S90/S90W180.hgt.gz"
+        );
+    }
+
+    #[tokio::test]
+    async fn test_get_elevation_on_tile_edges() {
+        // A pseudo-mercator-style pole/antimeridian request must not blow up
+        // with an out-of-bounds sample. The test fixture only ships N45E009,
+        // so a clean NotFound (a 404) is the expected outcome here.
+        let tileset = TileSetWithCache::new(test_options()).unwrap();
+        for (lat, lng) in [(90.0, 180.0), (90.0, 0.0), (0.0, 180.0), (-90.0, -180.0)] {
+            let error = tileset
+                .get_elevation(lat, lng)
+                .await
+                .expect_err("no tile for this coordinate in the fixture");
+            assert_eq!(
+                error.kind(),
+                ErrorKind::NotFound,
+                "({}, {}) must resolve to a missing tile, not: {}",
+                lat,
+                lng,
+                error
+            );
+        }
     }
 
     #[test]
