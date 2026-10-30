@@ -43,6 +43,22 @@ impl HGT {
         })
     }
 
+    /// Size of the decoded tile in bytes, used to charge the cache by memory
+    /// rather than by entry count. The largest supported grid (3601²) is
+    /// 25,934,402 bytes, so this always fits in `u32`.
+    pub fn size_bytes(&self) -> u32 {
+        self.buffer.len() as u32
+    }
+
+    #[cfg(test)]
+    pub(crate) fn synthetic(buffer_len: usize) -> Self {
+        Self {
+            buffer: vec![0; buffer_len],
+            sw_lat_lng: (0.0, 0.0),
+            size: 1,
+        }
+    }
+
     #[instrument(level = "debug", skip_all, fields(coord = format!("{},{}", lat, lng)))]
     pub fn get_elevation(&self, lat: f64, lng: f64) -> Result<i16, Error> {
         let size = self.size - 1;

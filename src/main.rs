@@ -50,7 +50,17 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
     let path = get_uri_from_config(config.clone());
 
     info!("Starting elevation service");
-    debug!("Cache Size: {}", config.cache_size);
+    match config.cache_budget_bytes {
+        Some(bytes) => info!(
+            "Tile cache budget: {} bytes ({} MiB)",
+            bytes,
+            bytes / (1024 * 1024)
+        ),
+        None => info!(
+            "Tile cache budget: {} entries (TILE_SET_CACHE fallback)",
+            config.cache_size
+        ),
+    }
     debug!("Tile Set Path: {:?}", path);
     debug!("Max Post Size: {}", max_post_size);
     debug!("Port: {}", port);
@@ -90,6 +100,7 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
     let options = TileSetOptions {
         path: path,
         cache_size: config.cache_size,
+        cache_budget_bytes: config.cache_budget_bytes,
         gzip: true,
         s3_access_key_id: config.s3_access_key_id.clone(),
         s3_secret_access_key: config.s3_secret_access_key.clone(),

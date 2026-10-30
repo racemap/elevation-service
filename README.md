@@ -87,6 +87,26 @@ Three details matter for the reliability of this signal:
 
 The elevation service includes several configuration options to control resource usage and limit concurrency:
 
+### Tile cache memory
+
+The cache stores decoded HGT tiles — the whole tile, not the compressed `.hgt.gz`
+file — so its memory is `entries × bytes per tile`. The two supported grids
+differ by 9×, which is why the cache is sized in bytes rather than in entries:
+
+| grid | bytes per tile | 128 entries would be |
+| --- | --- | --- |
+| 1″ (3601²) | 25,934,402 (~24.7 MiB) | ~3.1 GiB |
+| 3″ (1201²) | 2,884,802 (~2.8 MiB) | ~352 MiB |
+
+`TILE_CACHE_SIZE` sets the memory budget and accepts byte-unit suffixes such as
+`512mb` or `1gb`. The default is 512 MiB, which fits inside the default 1G
+container limit in `docker-compose.yaml`. For example, 512 MiB holds about 20
+1″ tiles or about 185 3″ tiles.
+
+`TILE_SET_CACHE` (tile count) is deprecated: setting it still works as a
+fallback when `TILE_CACHE_SIZE` is unset, but logs a startup warning. Use
+`TILE_CACHE_SIZE` instead.
+
 ### Limiting Tokio Runtime Threads
 
 To limit the number of threads used by the tokio runtime (useful for containerized environments). Should be not greater, then the number of cpu cores:
@@ -189,7 +209,8 @@ The following environment variables are supported for configuration:
 
 #### General Configuration
 - `TILE_SET_PATH`: Path to tiles (local path, HTTP/HTTPS URL, or s3:// URL)
-- `TILE_SET_CACHE`: Cache size for tiles (default: 128)
+- `TILE_CACHE_SIZE`: Memory budget for cached decoded tiles, with a byte-unit suffix such as `512mb` or `1gb` (default: 512mb)
+- `TILE_SET_CACHE`: Deprecated tile-count cache size, used only as a fallback when `TILE_CACHE_SIZE` is unset (default: 128)
 - `MAX_POST_SIZE`: Maximum POST payload size (default: 500kb)
 - `PORT`: Server port (default: 3000)
 - `BIND`: Bind address (default: 0.0.0.0)
