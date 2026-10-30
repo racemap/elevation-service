@@ -1,13 +1,21 @@
 use opentelemetry::trace::TracerProvider as _;
+use opentelemetry::{KeyValue, global};
 use opentelemetry_otlp::WithExportConfig;
-use opentelemetry_sdk::{runtime::Tokio, trace::Sampler};
+use opentelemetry_sdk::Resource;
+use opentelemetry_sdk::trace::{
+    BatchConfigBuilder, BatchSpanProcessor, Sampler, SdkTracerProvider,
+};
 use opentelemetry_stdout as stdout;
 use std::time::Duration;
 use tracing::{info, warn};
 use tracing_opentelemetry::OpenTelemetryLayer;
 use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan, prelude::*};
 
-pub fn init_telemetry() -> Result<(), Box<dyn std::error::Error>> {
+/// Initialize tracing and, when configured, OpenTelemetry trace export.
+///
+/// The returned provider must be kept alive for the lifetime of the process and
+/// shut down on exit so buffered spans are flushed.
+pub fn init_telemetry() -> Result<Option<SdkTracerProvider>, Box<dyn std::error::Error>> {
     // Get service name from environment or use default
     let service_name =
         std::env::var("SERVICE_NAME").unwrap_or_else(|_| "elevation-service".to_string());
@@ -21,22 +29,20 @@ pub fn init_telemetry() -> Result<(), Box<dyn std::error::Error>> {
 
     if debug_traces {
         // Debug mode: print traces to stdout
-        let provider = opentelemetry_sdk::trace::TracerProvider::builder()
+        let provider = SdkTracerProvider::builder()
             .with_simple_exporter(stdout::SpanExporter::default())
-            .with_config(
-                opentelemetry_sdk::trace::config()
-                    .with_sampler(Sampler::AlwaysOn)
-                    .with_resource(opentelemetry_sdk::Resource::new(vec![
-                        opentelemetry_semantic_conventions::resource::SERVICE_NAME
-                            .string(service_name.clone()),
-                    ])),
+            .with_sampler(Sampler::AlwaysOn)
+            .with_resource(
+                Resource::builder()
+                    .with_service_name(service_name.clone())
+                    .build(),
             )
             .build();
 
         let tracer = provider.tracer(service_name.clone());
 
         // Set as global provider so it doesn't get dropped
-        opentelemetry::global::set_tracer_provider(provider);
+        global::set_tracer_provider(provider.clone());
 
         let telemetry_layer = OpenTelemetryLayer::new(tracer);
 
@@ -48,51 +54,55 @@ pub fn init_telemetry() -> Result<(), Box<dyn std::error::Error>> {
             .map_err(|e| format!("Failed to initialize tracing: {}", e))?;
 
         warn!("OpenTelemetry DEBUG mode - traces printed to stdout");
+
+        Ok(Some(provider))
     } else if general_endpoint.is_some() || traces_endpoint.is_some() {
-        // Determine which endpoint to use for traces (signal-specific takes priority)
-        let trace_endpoint = traces_endpoint
+        // The exporter appends the signal path only to endpoints it reads from the
+        // environment, so a programmatic endpoint has to be the full trace URL.
+        let collector = traces_endpoint
             .or_else(|| general_endpoint.clone())
             .unwrap_or_else(|| "http://localhost:4318".to_string())
-            // Remove /v1/traces suffix if present (HTTP exporter appends it automatically)
+            .trim_end_matches('/')
             .trim_end_matches("/v1/traces")
             .trim_end_matches('/')
             .to_string();
+        let trace_endpoint = format!("{}/v1/traces", collector);
 
-        // Build the OTLP exporter
-        let exporter = opentelemetry_otlp::new_exporter()
-            .http()
+        let exporter = opentelemetry_otlp::SpanExporter::builder()
+            .with_http()
             .with_endpoint(&trace_endpoint)
             .with_timeout(Duration::from_secs(10))
-            .build_span_exporter()?;
+            .build()?;
 
-        // Configure batch processor with larger queue to handle high throughput
-        let batch_processor =
-            opentelemetry_sdk::trace::BatchSpanProcessor::builder(exporter, Tokio)
-                .with_max_queue_size(8192) // Increase queue size (default: 2048)
-                .with_max_export_batch_size(512) // Export in larger batches (default: 512)
-                .with_scheduled_delay(Duration::from_secs(2)) // Export every 2 seconds (default: 5s)
-                .with_max_timeout(Duration::from_secs(10)) // Fail fast if collector is slow
-                .build();
+        // Larger queue and shorter interval to keep up with request throughput
+        let batch_config = BatchConfigBuilder::default()
+            .with_max_queue_size(8192)
+            .with_max_export_batch_size(512)
+            .with_scheduled_delay(Duration::from_secs(2))
+            .build();
 
-        // Build the tracer provider
-        let provider = opentelemetry_sdk::trace::TracerProvider::builder()
-            .with_span_processor(batch_processor)
-            .with_config(
-                opentelemetry_sdk::trace::config()
-                    .with_sampler(Sampler::AlwaysOn)
-                    .with_resource(opentelemetry_sdk::Resource::new(vec![
-                        opentelemetry_semantic_conventions::resource::SERVICE_NAME
-                            .string(service_name.clone()),
-                        opentelemetry_semantic_conventions::resource::SERVICE_VERSION
-                            .string(env!("CARGO_PKG_VERSION")),
-                    ])),
+        let provider = SdkTracerProvider::builder()
+            .with_span_processor(
+                BatchSpanProcessor::builder(exporter)
+                    .with_batch_config(batch_config)
+                    .build(),
+            )
+            .with_sampler(Sampler::AlwaysOn)
+            .with_resource(
+                Resource::builder()
+                    .with_service_name(service_name.clone())
+                    .with_attribute(KeyValue::new(
+                        opentelemetry_semantic_conventions::resource::SERVICE_VERSION,
+                        env!("CARGO_PKG_VERSION"),
+                    ))
+                    .build(),
             )
             .build();
 
         let tracer = provider.tracer(service_name.clone());
 
         // Set as global provider so it doesn't get dropped
-        opentelemetry::global::set_tracer_provider(provider);
+        global::set_tracer_provider(provider.clone());
 
         // Set up tracing subscriber with OpenTelemetry layer
         let telemetry_layer = OpenTelemetryLayer::new(tracer);
@@ -105,7 +115,9 @@ pub fn init_telemetry() -> Result<(), Box<dyn std::error::Error>> {
             .map_err(|e| format!("Failed to initialize tracing with OpenTelemetry: {}", e))?;
 
         info!("OpenTelemetry tracing initialized successfully");
-        info!("Trace endpoint: {}/v1/traces", trace_endpoint);
+        info!("Trace endpoint: {}", trace_endpoint);
+
+        Ok(Some(provider))
     } else {
         warn!("OTEL_EXPORTER_OTLP_ENDPOINT not set, falling back to basic tracing");
         let stdout_layer = tracing_subscriber::fmt::layer()
@@ -121,7 +133,7 @@ pub fn init_telemetry() -> Result<(), Box<dyn std::error::Error>> {
             .map_err(|e| format!("Failed to initialize basic tracing: {}", e))?;
 
         info!("Basic tracing initialized (no OTLP export)");
-    }
 
-    Ok(())
+        Ok(None)
+    }
 }

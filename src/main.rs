@@ -7,7 +7,6 @@ use crate::{
     tileset::{TileSetOptions, TileSetWithCache},
     types::{LatLng, LatLngs},
 };
-use opentelemetry::global;
 use std::{sync::Arc, time::Duration};
 use tokio::sync::Semaphore;
 use tracing::{debug, info};
@@ -39,8 +38,9 @@ fn main() -> Result<(), Box<dyn std::error::Error>> {
 }
 
 async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
-    // Initialize telemetry FIRST, before anything else
-    init_telemetry()?;
+    // Initialize telemetry FIRST, before anything else. Holding the provider
+    // keeps span processors alive and lets us flush them on shutdown.
+    let tracer_provider = init_telemetry()?;
 
     // Access the configuration values
     let config = config::CONFIG.clone();
@@ -189,7 +189,11 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
     info!("Server shutting down");
 
     // Shutdown telemetry
-    global::shutdown_tracer_provider();
+    if let Some(provider) = tracer_provider {
+        if let Err(e) = provider.shutdown() {
+            debug!("Failed to shut down tracer provider: {}", e);
+        }
+    }
 
     Ok(())
 }
