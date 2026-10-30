@@ -240,7 +240,9 @@ The elevation service now includes integrated OpenTelemetry (OTEL) telemetry for
 Configure telemetry using these environment variables:
 
 - `SERVICE_NAME`: Service name for telemetry (default: "elevation-service")
-- `OTEL_EXPORTER_OTLP_ENDPOINT`: OTLP endpoint URL (e.g., "http://jaeger:4317")
+- `OTEL_EXPORTER_OTLP_ENDPOINT`: Base URL of an OTLP/HTTP collector (e.g., "http://jaeger:4318"). Traces are sent to `<endpoint>/v1/traces`
+- `OTEL_TRACES_COLLECTOR_URL`: Trace-specific collector URL; overrides `OTEL_EXPORTER_OTLP_ENDPOINT`. Both a bare base URL and a full `.../v1/traces` URL are accepted
+- `OTEL_DEBUG_TRACES`: When set, finished spans are printed to stdout instead of being exported
 - `RUST_LOG`: Log level for tracing (e.g., "info", "debug", "trace")
 
 ### Running with Jaeger
@@ -261,7 +263,7 @@ For production, set the environment variables in your deployment:
 
 ```bash
 export SERVICE_NAME=elevation-service
-export OTEL_EXPORTER_OTLP_ENDPOINT=http://your-jaeger-instance:4317
+export OTEL_EXPORTER_OTLP_ENDPOINT=http://your-jaeger-instance:4318
 export RUST_LOG=info
 ```
 
