@@ -26,6 +26,22 @@ curl 'http://localhost:3000/?lat=51.3&lng=13.4'
 # < ele
 ```
 
+## Data quality: void samples
+
+HGT tiles mark missing data with the sentinel value `-32768`. The service
+treats that sentinel as "no data" rather than as a real elevation of -32768 m:
+
+- In a bilinear cell, void corners are dropped and the remaining weights are
+  renormalised, so a single void corner no longer drags the result hundreds of
+  metres negative.
+- If all four corners of a cell are void, the lookup fails with a "no data"
+  error instead of returning a number. A single-point query answers
+  `404 Not Found`; a batch request currently fails as a whole rather than
+  returning `null` for that point.
+
+The Mapzen skadi tiles are largely void-filled, but fallback sources and
+user-supplied tiles need not be.
+
 ## Health endpoints
 
 There are two separate checks, because "this process is up" and "the tile
