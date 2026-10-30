@@ -72,14 +72,12 @@ impl HGT {
         let col_high = col_low + 1.0;
         let col_frac = col - col_low;
 
-        let value_low_low = HGT::get_row_col_value(self, row_low, col_low)?;
-        let value_low_high = HGT::get_row_col_value(self, row_low, col_high)?;
-        let value_high_low = HGT::get_row_col_value(self, row_high, col_low)?;
-        let value_high_high = HGT::get_row_col_value(self, row_high, col_high)?;
-        let value_low =
-            (value_low_low as f64 * (1.0 - col_frac) + value_low_high as f64 * col_frac) as i16;
-        let value_high =
-            (value_high_low as f64 * (1.0 - col_frac) + value_high_high as f64 * col_frac) as i16;
+        let value_low_low = HGT::get_row_col_value(self, row_low, col_low)? as f64;
+        let value_low_high = HGT::get_row_col_value(self, row_low, col_high)? as f64;
+        let value_high_low = HGT::get_row_col_value(self, row_high, col_low)? as f64;
+        let value_high_high = HGT::get_row_col_value(self, row_high, col_high)? as f64;
+        let value_low = value_low_low * (1.0 - col_frac) + value_low_high * col_frac;
+        let value_high = value_high_low * (1.0 - col_frac) + value_high_high * col_frac;
 
         debug!("row = {}", row);
         debug!("col = {}", col);
@@ -98,7 +96,7 @@ impl HGT {
         debug!("value_low = {}", value_low);
         debug!("value_high = {}", value_high);
 
-        let value = (value_low as f64 * (1.0 - row_frac) + value_high as f64 * row_frac) as i16;
+        let value = (value_low * (1.0 - row_frac) + value_high * row_frac).round() as i16;
         debug!("Final interpolated value: {}", value);
         Ok(value)
     }
@@ -158,5 +156,36 @@ mod tests {
         let elevation = hgt.get_elevation(-1.0, -1.0);
         assert!(elevation.is_err());
         assert_eq!(elevation.unwrap_err().kind(), ErrorKind::InvalidInput);
+    }
+
+    /// Builds a tile whose grid nodes carry known values, so interpolation can be
+    /// checked against hand-computed results.
+    fn tile_with_samples(full_size: usize, samples: &[(usize, usize, i16)]) -> HGT {
+        let mut buffer = vec![0u8; full_size * full_size * 2];
+        for &(row, col, value) in samples {
+            let offset = ((full_size - row - 1) * full_size + col) * 2;
+            buffer[offset..offset + 2].copy_from_slice(&value.to_be_bytes());
+        }
+        HGT::new(buffer, (0.0, 0.0)).unwrap()
+    }
+
+    #[test]
+    fn test_interpolation_rounds_once_instead_of_truncating() {
+        // The four samples around (row 0.5, col 0.5) average to 101.5. Truncating
+        // the two column interpolations and then the result gave 101; a single
+        // rounding at the end gives 102.
+        let hgt = tile_with_samples(1201, &[(0, 0, 100), (0, 1, 103), (1, 0, 100), (1, 1, 103)]);
+
+        assert_eq!(hgt.interpolation(0.5, 0.5).unwrap(), 102);
+    }
+
+    #[test]
+    fn test_interpolation_rounds_negative_elevations_away_from_zero() {
+        let hgt = tile_with_samples(
+            1201,
+            &[(0, 0, -100), (0, 1, -103), (1, 0, -100), (1, 1, -103)],
+        );
+
+        assert_eq!(hgt.interpolation(0.5, 0.5).unwrap(), -102);
     }
 }
