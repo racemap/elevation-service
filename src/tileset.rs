@@ -28,6 +28,10 @@ pub struct TileSetOptions {
     pub max_fetch_attempts: u32,
     /// Delay before the first retry; doubles for each further attempt.
     pub retry_base_delay: Duration,
+    /// Ceiling on establishing a connection to a remote tile backend.
+    pub fetch_connect_timeout: Duration,
+    /// Ceiling on one complete remote tile fetch attempt, body included.
+    pub fetch_timeout: Duration,
 }
 
 impl Default for TileSetOptions {
@@ -42,6 +46,8 @@ impl Default for TileSetOptions {
             s3_endpoint: None,
             max_fetch_attempts: 3,
             retry_base_delay: Duration::from_millis(100),
+            fetch_connect_timeout: Duration::from_secs(2),
+            fetch_timeout: Duration::from_secs(30),
         }
     }
 }

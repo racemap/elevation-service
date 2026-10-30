@@ -36,6 +36,10 @@ pub struct Config {
     pub tile_fetch_max_attempts: u32,
     /// Delay before the first retry, doubling for each further attempt.
     pub tile_fetch_retry_base_ms: u64,
+    /// Ceiling on establishing a connection to a remote tile backend.
+    pub tile_fetch_connect_timeout_ms: u64,
+    /// Ceiling on one complete remote tile fetch attempt, body included.
+    pub tile_fetch_timeout_ms: u64,
 }
 
 // Initialize dotenv and config only once
@@ -77,6 +81,11 @@ pub static CONFIG: Lazy<Config> = Lazy::new(|| {
         status_probe_timeout_ms: parse_env_var::<u64>("STATUS_PROBE_TIMEOUT_MS").unwrap_or(3000),
         tile_fetch_max_attempts: parse_env_var::<u32>("TILE_FETCH_MAX_ATTEMPTS").unwrap_or(3),
         tile_fetch_retry_base_ms: parse_env_var::<u64>("TILE_FETCH_RETRY_BASE_MS").unwrap_or(100),
+        tile_fetch_connect_timeout_ms: parse_positive_ms_env_var(
+            "TILE_FETCH_CONNECT_TIMEOUT_MS",
+            2000,
+        ),
+        tile_fetch_timeout_ms: parse_positive_ms_env_var("TILE_FETCH_TIMEOUT_MS", 30000),
     }
 });
 
@@ -145,4 +154,17 @@ fn get_non_empty_env_var(key: &str) -> Option<String> {
 /// Helper function to parse environment variable as a specific type, treating empty strings as None
 fn parse_env_var<T: std::str::FromStr>(key: &str) -> Option<T> {
     get_non_empty_env_var(key).and_then(|s| s.parse().ok())
+}
+
+/// Parses a timeout in milliseconds, refusing a value that is present but
+/// invalid. A timeout is a safety limit, so a typo must fail at startup rather
+/// than silently fall back to the default.
+fn parse_positive_ms_env_var(key: &str, default_ms: u64) -> u64 {
+    let Some(raw) = get_non_empty_env_var(key) else {
+        return default_ms;
+    };
+    match raw.parse::<u64>() {
+        Ok(value) if value > 0 => value,
+        _ => panic!("{key} must be a positive integer number of milliseconds, got {raw:?}"),
+    }
 }

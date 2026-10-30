@@ -83,6 +83,11 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
         "Tile Fetch Retry Base Delay: {}ms",
         config.tile_fetch_retry_base_ms
     );
+    debug!(
+        "Tile Fetch Connect Timeout: {}ms",
+        config.tile_fetch_connect_timeout_ms
+    );
+    debug!("Tile Fetch Timeout: {}ms", config.tile_fetch_timeout_ms);
 
     // Create semaphore for limiting concurrent handlers
     let semaphore = Arc::new(Semaphore::new(config.max_concurrent_handlers));
@@ -97,6 +102,8 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
         s3_endpoint: config.s3_endpoint.clone(),
         max_fetch_attempts: config.tile_fetch_max_attempts,
         retry_base_delay: Duration::from_millis(config.tile_fetch_retry_base_ms),
+        fetch_connect_timeout: Duration::from_millis(config.tile_fetch_connect_timeout_ms),
+        fetch_timeout: Duration::from_millis(config.tile_fetch_timeout_ms),
     };
     let tileset = Arc::new(TileSetWithCache::new(options)?);
 
