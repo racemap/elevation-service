@@ -243,7 +243,7 @@ Configure telemetry using these environment variables:
 - `OTEL_EXPORTER_OTLP_ENDPOINT`: Base URL of an OTLP/HTTP collector (e.g., "http://jaeger:4318"). Traces are sent to `<endpoint>/v1/traces`
 - `OTEL_TRACES_COLLECTOR_URL`: Trace-specific collector URL; overrides `OTEL_EXPORTER_OTLP_ENDPOINT`. Both a bare base URL and a full `.../v1/traces` URL are accepted
 - `OTEL_DEBUG_TRACES`: When set, finished spans are printed to stdout instead of being exported
-- `RUST_LOG`: Log level for tracing (e.g., "info", "debug", "trace")
+- `RUST_LOG`: Log level for tracing (e.g., "info", "debug", "trace"). Use `info` in production: it logs startup, tile loads, status recovery, failures and server errors, but not each successful request. To see every request while troubleshooting, use `RUST_LOG=info,elevation_service=debug,elevation_service::tileset::hgt=info` (the last directive keeps the per-point interpolation lines out)
 
 ### Running with Jaeger
 

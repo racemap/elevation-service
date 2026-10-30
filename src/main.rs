@@ -9,7 +9,7 @@ use crate::{
 };
 use std::{sync::Arc, time::Duration};
 use tokio::sync::Semaphore;
-use tracing::{debug, info};
+use tracing::{debug, info, warn};
 use warp::Filter;
 
 mod config;
@@ -179,7 +179,33 @@ async fn async_main() -> Result<(), Box<dyn std::error::Error>> {
                 .or(post_elevation_route)
                 .or(options_route),
         )
-        .with(warp::log("elevation-service"))
+        // Per-request access line at debug, so `RUST_LOG=info` stays quiet.
+        // Server errors and 413s (often a too-small MAX_POST_SIZE) stay
+        // visible at warn.
+        .with(warp::log::custom(|request| {
+            let status = request.status();
+            if status.is_server_error() || status == warp::http::StatusCode::PAYLOAD_TOO_LARGE {
+                warn!(
+                    method = %request.method(),
+                    path = request.path(),
+                    status = status.as_u16(),
+                    elapsed = ?request.elapsed(),
+                    remote_addr = ?request.remote_addr(),
+                    user_agent = request.user_agent(),
+                    "Request failed"
+                );
+            } else {
+                debug!(
+                    method = %request.method(),
+                    path = request.path(),
+                    status = status.as_u16(),
+                    elapsed = ?request.elapsed(),
+                    remote_addr = ?request.remote_addr(),
+                    user_agent = request.user_agent(),
+                    "Request served"
+                );
+            }
+        }))
         .with(cors);
 
     // Start the server
