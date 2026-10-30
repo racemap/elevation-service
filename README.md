@@ -214,7 +214,26 @@ any coordinate your own tile set covers.
 - `TILE_FETCH_RETRY_BASE_MS`: Delay before the first retry in milliseconds, doubling for each further attempt and capped at 2s (default: 100)
 
 Retries apply to the S3 and HTTP tile backends and only to transient failures —
-5xx, 429, 408 and connection errors. A 404 or a corrupt tile fails immediately.
+5xx, 429, 408, connection errors and timeouts. A 404 or a corrupt tile fails
+immediately.
+
+#### Tile Fetch Timeouts
+- `TILE_FETCH_CONNECT_TIMEOUT_MS`: Ceiling on establishing a connection to a remote tile backend, in milliseconds (default: 2000)
+- `TILE_FETCH_TIMEOUT_MS`: Ceiling on one complete remote tile fetch attempt, in milliseconds, response body included (default: 30000)
+
+These bound every S3 and HTTP tile fetch. A connection that is accepted but
+never answers now fails with a transport timeout and releases its semaphore
+permit, instead of holding a handler slot for as long as the socket stays open.
+The total budget covers the whole exchange, so a 25 MB tile over a slow link
+still has the full 30 s by default; the connect timeout only cuts a connection
+that never establishes. Because a timeout is a transient error, it is retried.
+
+Worst case for one tile is `TILE_FETCH_MAX_ATTEMPTS × TILE_FETCH_TIMEOUT_MS`
+plus the backoffs between attempts (each capped at 2 s). With the defaults that
+is roughly 90 s; lower `TILE_FETCH_TIMEOUT_MS` if you need a tighter ceiling.
+
+`STATUS_PROBE_TIMEOUT_MS` remains in charge of `/status`; these settings only
+apply to tile requests.
 
 #### S3 Configuration
 - `S3_ACCESS_KEY_ID`: S3 access key ID for authentication (also accepts `AWS_ACCESS_KEY_ID`)

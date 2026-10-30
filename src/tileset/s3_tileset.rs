@@ -4,6 +4,7 @@ use crate::tileset::{TileSetOptions, TileSetWithCache};
 use flate2::read::GzDecoder;
 use s3::{Bucket, Region, creds::Credentials};
 use std::io::Read;
+use std::time::Duration;
 use tracing::{debug, instrument};
 
 pub struct S3TileSet {
@@ -11,6 +12,7 @@ pub struct S3TileSet {
     key_prefix: String,
     gzip: bool,
     retry_policy: RetryPolicy,
+    fetch_timeout: Duration,
 }
 
 impl S3TileSet {
@@ -27,6 +29,8 @@ impl S3TileSet {
             s3_endpoint: endpoint,
             max_fetch_attempts,
             retry_base_delay,
+            fetch_connect_timeout,
+            fetch_timeout,
             ..
         } = options;
 
@@ -68,8 +72,11 @@ impl S3TileSet {
             Region::UsEast1
         };
 
-        // Create bucket instance
-        let bucket = Bucket::new(&bucket_name, region, credentials)?;
+        // Create bucket instance. `with_request_timeout` only bounds the
+        // connect phase in rust-s3 0.35 (it sets hyper's connect timeout), so
+        // the total time per request is bounded separately around each call.
+        let bucket = Bucket::new(&bucket_name, region, credentials)?
+            .with_request_timeout(fetch_connect_timeout)?;
 
         Ok(Self {
             bucket,
@@ -79,7 +86,18 @@ impl S3TileSet {
                 max_attempts: max_fetch_attempts,
                 base_delay: retry_base_delay,
             },
+            fetch_timeout,
         })
+    }
+
+    fn timed_out(&self, key: &str) -> TileError {
+        TileError::transport(
+            key,
+            format!(
+                "S3 request timed out after {}ms",
+                self.fetch_timeout.as_millis()
+            ),
+        )
     }
 
     fn key_for(&self, lat: f64, lng: f64) -> Result<String, TileError> {
@@ -118,10 +136,9 @@ impl S3TileSet {
     }
 
     async fn head(&self, key: &str) -> Result<(), TileError> {
-        let (_, status) = self
-            .bucket
-            .head_object(key)
+        let (_, status) = tokio::time::timeout(self.fetch_timeout, self.bucket.head_object(key))
             .await
+            .map_err(|_| self.timed_out(key))?
             .map_err(|e| TileError::transport(key, e))?;
 
         if !(200..300).contains(&status) {
@@ -131,10 +148,9 @@ impl S3TileSet {
     }
 
     async fn fetch(&self, key: &str) -> Result<Vec<u8>, TileError> {
-        let response = self
-            .bucket
-            .get_object(key)
+        let response = tokio::time::timeout(self.fetch_timeout, self.bucket.get_object(key))
             .await
+            .map_err(|_| self.timed_out(key))?
             .map_err(|e| TileError::transport(key, e))?;
 
         // `rust-s3` is built without the `fail-on-err` feature, so `get_object`
