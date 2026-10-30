@@ -9,7 +9,7 @@ use opentelemetry_stdout as stdout;
 use std::time::Duration;
 use tracing::{info, warn};
 use tracing_opentelemetry::OpenTelemetryLayer;
-use tracing_subscriber::{EnvFilter, fmt::format::FmtSpan, prelude::*};
+use tracing_subscriber::{EnvFilter, prelude::*};
 
 /// Initialize tracing and, when configured, OpenTelemetry trace export.
 ///
@@ -120,10 +120,13 @@ pub fn init_telemetry() -> Result<Option<SdkTracerProvider>, Box<dyn std::error:
         Ok(Some(provider))
     } else {
         warn!("OTEL_EXPORTER_OTLP_ENDPOINT not set, falling back to basic tracing");
+        // No span close events: the handler spans are INFO, so each request
+        // would log a line at `RUST_LOG=info`. The debug "Request served"
+        // line in main.rs carries total request time; per-span timing is
+        // exported over OTLP.
         let stdout_layer = tracing_subscriber::fmt::layer()
             .with_ansi(true)
-            .with_target(true)
-            .with_span_events(FmtSpan::CLOSE);
+            .with_target(true);
 
         // Fall back to basic tracing without OTLP export
         tracing_subscriber::registry()

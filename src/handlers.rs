@@ -8,7 +8,7 @@ use std::{
     time::Duration,
 };
 use tokio::sync::Semaphore;
-use tracing::{error, info, instrument, warn};
+use tracing::{debug, error, info, instrument, warn};
 use warp::{Rejection, Reply, filters::path::FullPath, reply};
 
 use crate::{
@@ -94,7 +94,7 @@ pub async fn get_status(
         warp::reject::custom(InternalError)
     })?;
 
-    info!("Status check requested");
+    debug!("Status check requested");
 
     // Bounded, so a hanging backend cannot hang the health check itself.
     let probe = tileset.probe_backend(state.probe_lat, state.probe_lng);
@@ -118,7 +118,7 @@ pub async fn get_status(
                     "Status check recovered"
                 );
             } else {
-                info!("Status check passed");
+                debug!("Status check passed");
             }
             Ok(status_reply(
                 StatusResponse {
@@ -188,10 +188,10 @@ pub async fn get_elevation(
         warp::reject::custom(InternalError)
     })?;
 
-    info!("Single elevation request");
+    debug!("Single elevation request");
     let elevation = match tileset.get_elevation(query.lat, query.lng).await {
         Ok(elevation) => {
-            info!(elevation = elevation, "Elevation retrieved successfully");
+            debug!(elevation = elevation, "Elevation retrieved successfully");
             elevation
         }
         Err(e) => {
@@ -215,7 +215,7 @@ pub async fn post_elevations(
         warp::reject::custom(InternalError)
     })?;
 
-    info!("Batch elevation request");
+    debug!("Batch elevation request");
     let elevation_futures = locations.into_iter().map(|loc| {
         let lat = loc.0;
         let lng = loc.1;
@@ -245,7 +245,7 @@ pub async fn post_elevations(
         }
     }
 
-    info!(
+    debug!(
         elevations_count = elevations.len(),
         "Batch elevation request completed"
     );
@@ -254,7 +254,7 @@ pub async fn post_elevations(
 
 #[instrument]
 pub async fn handle_options(_: FullPath) -> Result<impl warp::Reply, warp::Rejection> {
-    info!("CORS preflight request handled");
+    debug!("CORS preflight request handled");
     Ok(warp::reply::with_status("", warp::http::StatusCode::OK))
 }
 
